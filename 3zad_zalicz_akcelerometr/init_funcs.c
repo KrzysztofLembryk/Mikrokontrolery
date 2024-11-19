@@ -51,16 +51,43 @@ void init_rcc()
     // involved in the data transfer. 
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
                     RCC_AHB1ENR_GPIOBEN |
-                    RCC_AHB1ENR_GPIOCEN |
-                    RCC_AHB1ENR_DMA1EN; // wlaczamy DMA1
+                    RCC_AHB1ENR_GPIOCEN; 
 
     // APB1ENR - rejestr w RCC do wlaczania zegara dla peryferiow podpietych do
-    // magistrali APB1, czyli np. USART, TIM, SPI, USART2
+    // magistrali APB1, czyli np. USART, TIM, SPI, USART2, I2C
     // APB1ENR - Advanced Peripheral Bus 1 Enable Register
-    RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+    // wlaczamy zegar dla I2C1
+    RCC->APB1ENR |= RCC_APB1ENR_I2C1EN; 
+}
 
-    // Wlaczanie przerwan dla przyciskow itp czyli 
-    // SYSCFG - System Configuration Controller
-    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+void init_I2C1()
+{
+    // Wlaczamy linie SCL akcelerometru
+    GPIOafConfigure(GPIOB, 
+                    8, 
+                    GPIO_OType_OD,
+                    GPIO_Low_Speed, 
+                    GPIO_PuPd_NOPULL,
+                    GPIO_AF_I2C1);
+
+    // Wlaczamy linie SDA akcelerometru
+    GPIOafConfigure(GPIOB, 
+                    9, 
+                    GPIO_OType_OD,
+                    GPIO_Low_Speed, 
+                    GPIO_PuPd_NOPULL,
+                    GPIO_AF_I2C1);
+
+    // konfigurujemy I2C1 w wersji podstawowej
+    I2C1->CR1 = 0;
+    // Ustawiamy odpowiednia czestotliowsc taktowania szyny I2C
+    I2C1->CCR = (PCLK1_MHZ * 1000000) / (I2C_SPEED_HZ << 1);
+    I2C1->CR2 = PCLK1_MHZ;
+    I2C1->TRISE = PCLK1_MHZ + 1;
+
+    // Wlaczamy interfejs
+    I2C1->CR1 |= I2C_CR1_PE;
+
+    // !! rejestry I2C1 sa 16bitowe
 
 }

@@ -53,4 +53,9 @@
 #define BAUD 9600U
 // -----------REJESTR BRR-----------
 
+// -----------I2C-----------
+#define I2C_SPEED_HZ 100000
+#define PCLK1_MHZ 16
+// -----------I2C-----------
+
 #endif // REGISTER_CONSTS_H
