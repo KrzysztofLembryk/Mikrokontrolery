@@ -5,6 +5,7 @@
 
 // Nasz akcelerometr to LIS35DE 
 
+#define LIS35DE_ADDR 0x1C
 
 #define OUT_X 0x29
 #define OUT_Y 0x2B
@@ -27,6 +28,7 @@ void init_start_transmission()
     }
 
     // Wysylamy 7-bitowy adresu slave'a (urzadzenia)
+    // Moze to byc albo 0x1C albo 0x1D
     I2C1->DR = LIS35DE_ADDR << 1;
 
     // czekamy na ustawienie bitu ADDR - Address sent

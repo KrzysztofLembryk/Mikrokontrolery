@@ -57,7 +57,53 @@ void init_rcc()
     // magistrali APB1, czyli np. USART, TIM, SPI, USART2, I2C
     // APB1ENR - Advanced Peripheral Bus 1 Enable Register
     // wlaczamy zegar dla I2C1
-    RCC->APB1ENR |= RCC_APB1ENR_I2C1EN; 
+    RCC->APB1ENR |= RCC_APB1ENR_I2C1EN |
+                    RCC_APB1ENR_USART2EN; 
+}
+
+void init_TXD_RXD_lines()
+{
+    // Korzystamy z USART2
+    // --> linia TXD (Transmit Data Line)
+    //      uzywana jest do wysylania danych z mikrokontrolera poprzez pin PA2
+    GPIOafConfigure(GPIOA,
+                    2,
+                    GPIO_OType_PP,
+                    GPIO_Fast_Speed,
+                    GPIO_PuPd_NOPULL,
+                    GPIO_AF_USART2);
+
+    // --> linia RXD (Receive Data Line)
+    //      uzywana jest do odbierania danych z mikrokontrolera poprzez pin PA3
+    GPIOafConfigure(GPIOA,
+                    3,
+                    GPIO_OType_PP,
+                    GPIO_Fast_Speed,
+                    GPIO_PuPd_UP,
+                    GPIO_AF_USART2);
+}
+
+void init_usart2_cr_registers()
+{
+    // ------ Ustawienie rejestrow CR ------
+
+    // CR1 - nieaktywny bo nie ustawiamy bitu USART_Enable
+    USART2->CR1 = USART_Mode_Rx_Tx |
+                  USART_WordLength_8b |
+                  USART_Parity_No;
+
+    // CR2 - ustawienie bitow stopu
+    USART2->CR2 = USART_StopBits_1;
+
+    // CR3
+    USART2->CR3 = USART_FlowControl_None;
+
+    // BRR - ustawienie predkosci transmisji danych
+    USART2->BRR = (PCLK1_HZ + (BAUD / 2U)) / BAUD;
+
+    // Teraz chcemy uaktywnic interfejs USART, wiec
+    // ustawiamy bit USART_Enable w rejestrze CR1
+    USART2->CR1 |= USART_Enable;
 }
 
 void init_I2C1()
