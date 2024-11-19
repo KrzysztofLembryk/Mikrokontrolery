@@ -14,9 +14,10 @@
 int main()
 {
     init_rcc();
-    init_diods();
     init_TXD_RXD_lines();
     init_usart2_cr_registers();
+    init_diods();
+    init_I2C1();
 
     int what_to_send = 0;
     int x = 0, y = 0, z = 0;
@@ -24,21 +25,31 @@ int main()
     {
         if (what_to_send == 0)
             handle_I2C1_recv(&x, &y, &z);
+        else 
+            {
+                if (USART2->SR & USART_SR_RXNE)
+                {
+                    USART2->DR = 'x';
+                }
+            }
         if (USART2->SR & USART_SR_TXE)
         {
+            char c = 'a';
             if (what_to_send == 0)
             {
-                USART2->DR = (uint8_t)x;
+                USART2->DR = ;
                 what_to_send = 1;
             }
             else if (what_to_send == 1)
             {
-                USART2->DR = (uint8_t)y;
+                c = '\r';
+                USART2->DR = c;
                 what_to_send = 2;
             }
             else if (what_to_send == 2)
             {
-                USART2->DR = (uint8_t)z;
+                c = '\n';
+                USART2->DR = c;
                 what_to_send = 0;
             }
         }
