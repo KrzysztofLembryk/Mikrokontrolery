@@ -173,7 +173,7 @@ void init_button_interrupts()
     // -------AT MODE BUTTON-------
     GPIOinConfigure(AT_BTN_GPIO, 
                     AT_BTN_PIN, 
-                    GPIO_PuPd_UP,
+                    GPIO_PuPd_NOPULL,
                     EXTI_Mode_Interrupt,
                     EXTI_Trigger_Rising_Falling);
 

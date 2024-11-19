@@ -62,6 +62,8 @@ void init_rcc()
 
 void init_I2C1()
 {
+    // Akceleromter podlaczony jest o magistrali I2C, a na niej do 
+    // ukladu I2C1, lini SCL na pinie PB8 i SDA na pinie PB9
     // Wlaczamy linie SCL akcelerometru
     GPIOafConfigure(GPIOB, 
                     8, 
@@ -78,7 +80,7 @@ void init_I2C1()
                     GPIO_PuPd_NOPULL,
                     GPIO_AF_I2C1);
 
-    // konfigurujemy I2C1 w wersji podstawowej
+    // resetujemy I2C1 w do podstawowych ustawien
     I2C1->CR1 = 0;
     // Ustawiamy odpowiednia czestotliowsc taktowania szyny I2C
     I2C1->CCR = (PCLK1_MHZ * 1000000) / (I2C_SPEED_HZ << 1);
