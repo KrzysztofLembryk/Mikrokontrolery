@@ -66,7 +66,7 @@ void init_rcc()
 
 }
 
-void init_TXD_RXD_lines()
+void init_usart2_TXD_RXD_lines()
 {
     // Korzystamy z USART2
     // --> linia TXD (Transmit Data Line)

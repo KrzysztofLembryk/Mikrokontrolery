@@ -14,7 +14,7 @@
 int main()
 {
     init_rcc();
-    init_TXD_RXD_lines();
+    init_usart2_TXD_RXD_lines();
     init_usart2_cr_registers();
     init_diods();
     init_I2C1();
@@ -37,7 +37,7 @@ int main()
             char c = 'a';
             if (what_to_send == 0)
             {
-                USART2->DR = ;
+                USART2->DR = x;
                 what_to_send = 1;
             }
             else if (what_to_send == 1)

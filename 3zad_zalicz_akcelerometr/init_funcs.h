@@ -5,7 +5,7 @@ void init_diods();
 
 void init_rcc();
 
-void init_TXD_RXD_lines();
+void init_usart2_TXD_RXD_lines();
 
 void init_usart2_cr_registers();
 

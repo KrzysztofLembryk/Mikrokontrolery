@@ -61,7 +61,7 @@ void init_rcc()
                     RCC_APB1ENR_USART2EN; 
 }
 
-void init_TXD_RXD_lines()
+void init_usart2_TXD_RXD_lines()
 {
     // Korzystamy z USART2
     // --> linia TXD (Transmit Data Line)
@@ -108,6 +108,22 @@ void init_usart2_cr_registers()
 
 void init_I2C1()
 {
+    // Linie SCL (Serial Clock Line) i SDA (Serial Data Line) są podstawowymi 
+    // liniami komunikacyjnymi w protokole I2C (Inter-Integrated Circuit)
+
+    // SCL (Serial Clock Line): Linia zegarowa, która synchronizuje przesyłanie 
+    // danych między urządzeniami master i slave.
+    // Urządzenie master generuje sygnał zegarowy na linii SCL.
+    // Urządzenia slave odbierają sygnał zegarowy i synchronizują swoje 
+    // operacje z tym zegarem.
+
+    // SDA (Serial Data Line): Linia danych, która przesyła dane między 
+    // urządzeniami master i slave.
+    // Linia SDA jest dwukierunkowa, co oznacza, że zarówno urządzenie master, 
+    // jak i slave mogą wysyłać i odbierać dane.
+    // Dane są przesyłane w formie bitów, zsynchronizowanych z sygnałem 
+    // zegarowym na linii SCL.
+
     // Akceleromter podlaczony jest o magistrali I2C, a na niej do 
     // ukladu I2C1, lini SCL na pinie PB8 i SDA na pinie PB9
     // Wlaczamy linie SCL akcelerometru

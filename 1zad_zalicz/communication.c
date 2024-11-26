@@ -397,7 +397,7 @@ void init_rcc()
     RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
 }
 
-void init_TXD_RXD_lines()
+void init_usart2_TXD_RXD_lines()
 {
     // Korzystamy z USART2
     // --> linia TXD (Transmit Data Line)
@@ -725,7 +725,7 @@ int main()
     init_rcc();
     // Konfiguracja diod, zeby mogly dzialac
     init_diods();
-    init_TXD_RXD_lines();
+    init_usart2_TXD_RXD_lines();
     init_usart2_cr_registers();
 
     static char input[INPUT_MSG_SIZE] = {0};

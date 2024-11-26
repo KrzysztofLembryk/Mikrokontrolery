@@ -174,7 +174,7 @@ int main()
 {
     init_rcc();
     init_diods();
-    init_TXD_RXD_lines();
+    init_usart2_TXD_RXD_lines();
     init_usart2_cr_registers();
     init_dma_cr_registers();
     init_dma_interrupts();
