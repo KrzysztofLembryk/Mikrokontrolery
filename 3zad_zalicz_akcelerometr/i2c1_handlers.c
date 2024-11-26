@@ -79,7 +79,7 @@ bool init_start_transmission()
     return true;
 }
 
-bool generate_repeated_start_recv(int reg, int *res_val)
+bool generate_repeated_start_recv(int reg, int8_t *res_val)
 {
     // Wysylamy numer rejestru z ktorego chcemy odczytac dane
     I2C1->DR = reg;
@@ -133,6 +133,8 @@ bool send_data_to_accelerometer(uint8_t reg_addr, uint8_t reg_val)
 
     if (!wait_for_bit_set(I2C_SR1_BTF))
         return false;
+    
+    return true;
 }
 
 
@@ -149,11 +151,11 @@ bool I2C1_send_power_en()
     return true;
 }
 
-bool I2C1_recv(int *x_val, int *y_val, int *z_val)
+bool I2C1_recv(int8_t *x_val, int8_t *y_val, int8_t *z_val)
 {
-    int prev_x = *x_val;
-    int prev_y = *y_val;
-    int prev_z = *z_val;
+    int8_t prev_x = *x_val;
+    int8_t prev_y = *y_val;
+    int8_t prev_z = *z_val;
 
     if (!init_start_transmission())
         return false;

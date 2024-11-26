@@ -5,11 +5,68 @@
 #include "diods.h"
 #include "init_funcs.h"
 #include "i2c1_handlers.h"
+#include "queue.h"
 
 // KOMENDA WGRYWJACA PROGRAM NA PLYTKE
 // /opt/arm/stm32/ocd/qfn4
 // dokumentacja: /opt/arm/stm32/doc
 // komenda do komunikacj z plytka to minicom
+void int8_to_string(int8_t value, char *str)
+{
+    char *ptr = str;
+    bool is_negative = false;
+
+    // Handle negative values
+    if (value < 0)
+    {
+        is_negative = true;
+        value = -value;
+    }
+
+    // Convert the integer to a string
+    do
+    {
+        *ptr++ = '0' + (value % 10);
+        value /= 10;
+    } while (value > 0);
+
+    // Add the negative sign if needed
+    if (is_negative)
+    {
+        *ptr++ = '-';
+    }
+
+    // Null-terminate the string
+    *ptr = '\r';
+    ptr++;
+    *ptr = '\n';
+
+    // Reverse the string
+    for (char *start = str, *end = ptr - 1; start < end; ++start, --end)
+    {
+        char temp = *start;
+        *start = *end;
+        *end = temp;
+    }
+}
+
+
+void add_xyz_to_q(int8_t x, int8_t y, int8_t z, QInfo *q_info)
+{
+    char dec_str[10]; 
+    dec_str[0] = 'x';
+    dec_str[1] = ':';
+    int8_to_string(x, dec_str + 2);
+    q_add_str(dec_str, q_info);
+
+    dec_str[0] = 'y';
+    int8_to_string(y, dec_str + 2);
+    q_add_str(dec_str, q_info);
+
+    dec_str[0] = 'z';
+    int8_to_string(z, dec_str + 2);
+    q_add_str(dec_str, q_info);
+}
 
 int main()
 {
@@ -18,42 +75,27 @@ int main()
     init_usart2_cr_registers();
     init_diods();
     init_I2C1();
-    
-    while (!I2C1_send(ACCELEROMETER_REG_NBR_1, 0x47)) {}
 
-    int what_to_send = 0;
-    int x = 0, y = 0, z = 0;
+    QInfo q_info;
+    init_QInfo(&q_info, QUEUE_SIZE);
+    
+    if (!I2C1_send_power_en())
+    {
+        RedLEDon();
+        while(1);
+    }
+
+    int8_t x = 0, y = 0, z = 0;
     while (1)
     {
-        if (what_to_send == 0)
-            I2C1_recv(&x, &y, &z);
-        else 
-            {
-                if (USART2->SR & USART_SR_RXNE)
-                {
-                    USART2->DR = 'x';
-                }
-            }
+        I2C1_recv(&x, &y, &z);
+        add_xyz_to_q(x, y, z, &q_info);
+        
         if (USART2->SR & USART_SR_TXE)
         {
-            char c = 'a';
-            if (what_to_send == 0)
-            {
-                USART2->DR = x;
-                what_to_send = 1;
-            }
-            else if (what_to_send == 1)
-            {
-                c = '\r';
+            char c;
+            if (q_remove(&c, &q_info))
                 USART2->DR = c;
-                what_to_send = 2;
-            }
-            else if (what_to_send == 2)
-            {
-                c = '\n';
-                USART2->DR = c;
-                what_to_send = 0;
-            }
         }
     }
 }
