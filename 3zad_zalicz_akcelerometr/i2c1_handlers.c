@@ -14,6 +14,8 @@
 // akcelerometru
 
 #define LIS35DE_ADDR 0x1C
+#define CTRL_REG1 0x20
+#define PD_EN 0b01000000 // Power Down Enable, 7th bit = 64 = 0x40
 
 #define OUT_X 0x29
 #define OUT_Y 0x2B
@@ -104,6 +106,10 @@ bool generate_repeated_start_recv(int reg, int *res_val)
     if (!wait_for_bit_set(I2C_SR1_ADDR))
         return false;
 
+    // Zainicjuj transmisję sygnału STOP, aby został wysłany po
+    // odebraniu ostatniego (w tym przypadku jedynego) bajtu
+    end_transmission();
+
     // kasujemy bit ADDR
     I2C1->SR2;
 
@@ -112,6 +118,7 @@ bool generate_repeated_start_recv(int reg, int *res_val)
         return false;
 
     *res_val = I2C1->DR;
+
     return true;
 }
 
@@ -129,12 +136,12 @@ bool send_data_to_accelerometer(uint8_t reg_addr, uint8_t reg_val)
 }
 
 
-bool handle_I2C1_send(int reg_addr, int reg_val)
+bool I2C1_send_power_en()
 {
     if (!init_start_transmission())
         return false;
     
-    if (!send_data_to_accelerometer(reg_addr, reg_val))
+    if (!send_data_to_accelerometer(CTRL_REG1, PD_EN))
         return false;
     
     end_transmission();
@@ -142,7 +149,7 @@ bool handle_I2C1_send(int reg_addr, int reg_val)
     return true;
 }
 
-bool handle_I2C1_recv(int *x_val, int *y_val, int *z_val)
+bool I2C1_recv(int *x_val, int *y_val, int *z_val)
 {
     int prev_x = *x_val;
     int prev_y = *y_val;
@@ -175,7 +182,5 @@ bool handle_I2C1_recv(int *x_val, int *y_val, int *z_val)
         return false;
     }
     
-    end_transmission();
-
     return true;
 }
