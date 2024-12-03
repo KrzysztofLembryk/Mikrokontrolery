@@ -15,7 +15,7 @@
 
 #define LIS35DE_ADDR 0x1C
 #define CTRL_REG1 0x20
-#define PD_EN 0b01000000 // Power Down Enable, 7th bit = 64 = 0x40
+#define PD_EN 0b01000111 // Power Down Enable, 7th bit = 64 = 0x40
 
 #define OUT_X 0x29
 #define OUT_Y 0x2B
@@ -27,7 +27,7 @@
 void wait_timeout()
 {
     volatile int i = 0;
-    while(i < 15000)
+    while(i < 150000)
     {
         i++;
         __NOP();
@@ -136,7 +136,6 @@ bool send_data_to_accelerometer(uint8_t reg_addr, uint8_t reg_val)
     
     return true;
 }
-
 
 bool I2C1_send_power_en()
 {

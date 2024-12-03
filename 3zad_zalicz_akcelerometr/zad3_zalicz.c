@@ -23,23 +23,26 @@ void int8_to_string(int8_t value, char *str)
         value = -value;
     }
 
-    // Convert the integer to a string
-    do
-    {
-        *ptr++ = '0' + (value % 10);
-        value /= 10;
-    } while (value > 0);
-
-    // Add the negative sign if needed
-    if (is_negative)
-    {
-        *ptr++ = '-';
-    }
-
     // Null-terminate the string
     *ptr = '\r';
     ptr++;
     *ptr = '\n';
+    ptr++;
+
+    // Convert the integer to a string
+    do
+    {
+        *ptr = '0' + (value % 10);
+        ptr++;
+        value /= 10;
+    } while (value > 0);
+
+    if (is_negative)
+    {
+        *ptr = '-';
+        ptr++;
+    }
+
 
     // Reverse the string
     for (char *start = str, *end = ptr - 1; start < end; ++start, --end)
