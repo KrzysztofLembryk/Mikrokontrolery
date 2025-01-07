@@ -56,7 +56,9 @@ bool wait_for_bit_set(uint32_t bit)
 
 bool init_start_transmission()
 {
-    // inicjalizacja transmisji sygnalu START
+    // inicjalizacja transmisji sygnalu START, tego nie robimy w przerwaniu
+    // to robimy przed i dopiero jak wyslemy to start to w przerwaniach reszte
+    // rzeczy, bo dopiero wtedy one tak jakby dzialaja
     I2C1->CR1 |= I2C_CR1_START;
 
     // czekamy na ustawienie bitu SB - Start Bit
@@ -121,6 +123,11 @@ bool generate_repeated_start_recv(int reg, int8_t *res_val)
     return true;
 }
 
+/**
+ * Funkcja wysyła dane do akcelerometru, czyli co w danym rejestrze 
+ * akcelerometru ma być zapisane, np w rejestrze CTRL_REG1 ma być wartość PD_EN,
+ * która uruchamia akcelerometr i osie X, Y, Z
+ */
 bool send_data_to_accelerometer(uint8_t reg_addr, uint8_t reg_val)
 {
     I2C1->DR = reg_addr;

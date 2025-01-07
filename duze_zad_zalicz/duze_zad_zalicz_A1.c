@@ -6,6 +6,7 @@
 #include "init_funcs.h"
 #include "i2c1_handlers.h"
 #include "queue.h"
+#include "i2c1_interrupts_handlers.h"
 
 // KOMENDA WGRYWJACA PROGRAM NA PLYTKE
 // /opt/arm/stm32/ocd/qfn4

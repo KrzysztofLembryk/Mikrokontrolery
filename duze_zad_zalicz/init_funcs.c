@@ -156,12 +156,16 @@ void init_I2C1()
                 I2C_CR2_ITBUFEN;
     I2C1->TRISE = PCLK1_MHZ + 1;
 
+    // Wlaczamy przerwania  NVIC dla I2C1
+    // Event interrupt - czyli przerwanie gdy np. skonczymy pomiar
+    NVIC_EnableIRQ(I2C1_EV_IRQn);
+
+    // Error interrupt - tego chyba nie potrzebujemy
+    // NVIC_EnableIRQ(I2C1_ER_IRQn);
+
     // Wlaczamy interfejs
     I2C1->CR1 |= I2C_CR1_PE;
 
     // !! rejestry I2C1 sa 16bitowe
 
-    // Wlaczamy przerwania  NVIC dla I2C1
-    NVIC_EnableIRQ(I2C1_EV_IRQn);
-    NVIC_EnableIRQ(I2C1_ER_IRQn);
 }
