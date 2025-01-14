@@ -112,3 +112,68 @@ bool q_remove_str(char *rmvd_str, int *rmvd_str_len, QInfo *q_info)
 
     return true;
 }
+
+
+void int8_to_string(int8_t value, char *str)
+{
+    char *ptr = str;
+    bool is_negative = false;
+
+    // Handle negative values
+    if (value < 0)
+    {
+        is_negative = true;
+        value = -value;
+    }
+
+    // Null-terminate the string
+    *ptr = '\n';
+    ptr++;
+    *ptr = '\r';
+    ptr++;
+
+    // Convert the integer to a string
+    do
+    {
+        *ptr = '0' + (value % 10);
+        ptr++;
+        value /= 10;
+    } while (value > 0);
+
+    if (is_negative)
+    {
+        *ptr = '-';
+        ptr++;
+    }
+
+    // Reverse the string
+    for (char *start = str, *end = ptr - 1; start < end; ++start, --end)
+    {
+        char temp = *start;
+        *start = *end;
+        *end = temp;
+    }
+}
+
+void q_add_xyz(int8_t read_val, uint32_t reg_type, QInfo *q_info)
+{
+    static char dec_str[10];
+    dec_str[1] = ':';
+
+    if (reg_type == 0)
+        dec_str[0] = 'x';
+    else if (reg_type == 1)
+        dec_str[0] = 'y';
+    else(reg_type == 2)
+        dec_str[0] = 'z';
+
+    int8_to_string(read_val, dec_str + 2);
+    q_add_str(dec_str, q_info);
+}
+
+char q_front(QInfo *q_info)
+{
+    if (q_is_empty(q_info))
+        return '\0';
+    return q_info->queue[q_info->front];
+}
