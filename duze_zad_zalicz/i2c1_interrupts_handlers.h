@@ -4,7 +4,14 @@
 #include <delay.h>
 #include <gpio.h>
 #include <stm32.h>
+#include "queue.h"
+
+void init_I2C1_accelerometer_transmission();
+
+void init_I2C1_interrupts_handlers_data();
 
 void I2C1_EV_IRQHandler();
+
+extern QInfo data_queue;
 
 #endif // I2C1_INTERRUPTS_HANDLERS_H

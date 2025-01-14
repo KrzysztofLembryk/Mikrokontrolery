@@ -13,8 +13,8 @@ LDFLAGS = $(FLAGS) -Wl,--gc-sections -nostartfiles \
 			-L/opt/arm/stm32/lds -Tstm32f411re.lds
 vpath %.c /opt/arm/stm32/src
 
-OBJECTS = duze_zad_zalicz_A1.o startup_stm32.o delay.o gpio.o i2c1_handlers.o \
-			init_funcs.o queue.o
+OBJECTS = duze_zad_zalicz_A1.o startup_stm32.o delay.o gpio.o \
+			init_funcs.o queue.o i2c1_interrupts_handlers.o
 TARGET = comm
 
 .SECONDARY: $(TARGET).elf $(OBJECTS)

@@ -1,5 +1,9 @@
 #include "queue.h"
 
+#define X_REG_TYPE 0
+#define Y_REG_TYPE 1
+#define Z_REG_TYPE 2
+
 void init_QInfo(QInfo *q_info, int q_size)
 {
     q_info->front = 0;
@@ -160,12 +164,22 @@ void q_add_xyz(int8_t read_val, uint32_t reg_type, QInfo *q_info)
     static char dec_str[10];
     dec_str[1] = ':';
 
-    if (reg_type == 0)
+    if (reg_type == X_REG_TYPE)
+    {
         dec_str[0] = 'x';
-    else if (reg_type == 1)
+    }
+    else if (reg_type == Y_REG_TYPE)
+    {
         dec_str[0] = 'y';
-    else(reg_type == 2)
+    }
+    else if(reg_type == Z_REG_TYPE)
+    {
         dec_str[0] = 'z';
+    }
+    else 
+    {
+        dec_str[0] = 'B';
+    }
 
     int8_to_string(read_val, dec_str + 2);
     q_add_str(dec_str, q_info);
