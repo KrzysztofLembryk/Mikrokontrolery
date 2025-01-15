@@ -159,7 +159,7 @@ void int8_to_string(int8_t value, char *str)
     }
 }
 
-void q_add_xyz(int8_t read_val, uint32_t reg_type, QInfo *q_info)
+void q_add_xyz(int8_t read_val, uint8_t reg_type, QInfo *q_info)
 {
     static char dec_str[10];
     dec_str[1] = ':';

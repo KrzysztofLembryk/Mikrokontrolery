@@ -305,7 +305,7 @@ int better_impl(
     {
         int8_t received_byte = I2C1->DR;
 
-        q_add_xyz(received_byte, read_reg_type, &data_queue);
+        q_add_xyz(received_byte, *read_reg_type, &data_queue);
 
         *read_reg_type = (*read_reg_type + 1) % 3;
 

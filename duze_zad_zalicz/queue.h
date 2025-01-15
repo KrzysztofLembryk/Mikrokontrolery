@@ -30,7 +30,7 @@ bool q_add_str(char *str, QInfo *q_info);
 
 bool q_remove_str(char *rmvd_str, int *rmvd_str_len, QInfo *q_info);
 
-void q_add_xyz(int8_t read_val, uint32_t reg_type, QInfo *q_info);
+void q_add_xyz(int8_t read_val, uint8_t reg_type, QInfo *q_info);
 
 char q_front(QInfo *q_info);
 
