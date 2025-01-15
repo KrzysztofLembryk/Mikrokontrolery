@@ -226,6 +226,7 @@ int better_impl(
     uint8_t *read_reg_type)
 {
     static uint8_t reg_addr = LIS35DE_ADDR << 1;
+    static bool first_sent = false;
     if (sr1 & I2C_SR1_SB)
     {
         if (*is_MR) // etap MR: 1
@@ -240,7 +241,13 @@ int better_impl(
             if (*more_to_set) // etap MR: 4
                 I2C1->CR1 &= ~I2C_CR1_ACK;
         else 
+        {
             reg_addr = CTRL_REG1;
+            // w init_I2C wlaczamy przerwania TXE, wiec moze najpierw dostaniemy
+            // to przerwanie zanim jeszcze zrobimy START, wiec trzymamy boola 
+            // ktory mowi czy juz zaczelismy komunikacje
+            first_sent = true;
+        }
     }
     else if (sr1 & I2C_SR1_ADDR)
     {
@@ -295,7 +302,8 @@ int better_impl(
     else if (sr1 & I2C_SR1_TXE)
     {
         // etap MT: 3
-        I2C1->DR = PD_EN;
+        if (first_sent)
+            I2C1->DR = PD_EN;
     }
     else if (sr1 & I2C_SR1_RXNE) // etap MR: 6
     {
