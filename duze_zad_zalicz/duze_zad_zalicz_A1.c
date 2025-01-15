@@ -11,6 +11,9 @@
 // dokumentacja: /opt/arm/stm32/doc
 // komenda do komunikacj z plytka to minicom
 
+// na WSL2, minicom ok
+// ale sudo /opt/arm/stm32/ocd/qfn4
+
 int main()
 {
     init_rcc();
@@ -18,16 +21,17 @@ int main()
     init_usart2_cr_registers();
     init_diods();
     init_I2C1();
-    init_I2C1_interrupts_handlers_data();
-    init_I2C1_accelerometer_transmission();
-    
+    // init_I2C1_interrupts_handlers_data();
+    // init_I2C1_accelerometer_transmission();
+
     while (1)
     {
         if (USART2->SR & USART_SR_TXE)
         {
-            char c;
-            if (q_remove(&c, &data_queue))
-                USART2->DR = c;
+            // char c;
+            // if (q_remove(&c, &data_queue))
+            //     USART2->DR = c;
+            USART2->DR = 'x';
         }
     }
 }

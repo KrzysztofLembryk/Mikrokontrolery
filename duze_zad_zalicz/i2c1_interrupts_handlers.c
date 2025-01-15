@@ -89,10 +89,6 @@ void init_I2C1_interrupts_handlers_data()
 //     // nie pusty czy cos takiego
 //     // if (!(SR1 & I2C_SR1_TXE))
 //     // {
-//     //     if (USART2->SR & USART_SR_TXE)
-//     //     {
-//     //         USART2->DR = '0';
-//     //     }
 //     //     return TXE_FLAG_NOT_SET;
 //     // }
 
@@ -102,10 +98,6 @@ void init_I2C1_interrupts_handlers_data()
 //         if (!(SR1 & I2C_SR1_SB))
 //             return SB_FLAG_NOT_SET;
 
-//         if (USART2->SR & USART_SR_TXE)
-//         {
-//             USART2->DR = '1';
-//         }
 //         *byte_type = INIT_POWER_EN_SEND_CTRL_REG_ADDR;
 //         I2C1->DR = LIS35DE_ADDR << 1;
 
@@ -114,10 +106,6 @@ void init_I2C1_interrupts_handlers_data()
 //         if (!(SR1 & I2C_SR1_ADDR))
 //             return ADDR_FLAG_NOT_SET;
 
-//         if (USART2->SR & USART_SR_TXE)
-//         {
-//             USART2->DR = '2';
-//         }
 //         *byte_type = INIT_POWER_EN_SEND_CTRL_REG_DATA;
 //         // odczytujemy SR2, aby wyczyscic bit ADDR, jest to wymagane aby
 //         // zakonczyc procedure adresowania i przejsc do nastepnego etapu
@@ -133,10 +121,6 @@ void init_I2C1_interrupts_handlers_data()
 
 //         *byte_type = INIT_POWER_EN_END_TRANSMISSION;
 //         I2C1->DR = PD_EN;
-//         if (USART2->SR & USART_SR_TXE)
-//         {
-//             USART2->DR = '3';
-//         }
 
 //         return OK;
 //     case INIT_POWER_EN_END_TRANSMISSION:
@@ -144,10 +128,6 @@ void init_I2C1_interrupts_handlers_data()
 //             return BTF_FLAG_NOT_SET;
 //         *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
 
-//         if (USART2->SR & USART_SR_TXE)
-//         {
-//             USART2->DR = '4';
-//         }
 //         // Nie mamy juz nic do wyslania bo koniec inicjacji, wiec wylaczamy 
 //         // przerwania bo ciagle by sie one generowaly bo nic nie dodalismy do DR
 //         I2C1->CR1 |= I2C_CR1_STOP;
@@ -241,11 +221,11 @@ void init_I2C1_interrupts_handlers_data()
 
 int better_impl(
     uint16_t sr1, 
-    uint8_t reg_addr, 
     bool *is_MR, 
     bool *more_to_set,
     uint8_t *read_reg_type)
 {
+    static uint8_t reg_addr = LIS35DE_ADDR << 1;
     if (sr1 & I2C_SR1_SB)
     {
         if (*is_MR) // etap MR: 1
@@ -259,6 +239,8 @@ int better_impl(
         if (*is_MR)
             if (*more_to_set) // etap MR: 4
                 I2C1->CR1 &= ~I2C_CR1_ACK;
+        else 
+            reg_addr = CTRL_REG1;
     }
     else if (sr1 & I2C_SR1_ADDR)
     {
@@ -273,7 +255,17 @@ int better_impl(
                 I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
             }
             else  // etap MR: 2
+            {
+                if (*read_reg_type == X_REG_TYPE)
+                    reg_addr = OUT_X_REG;
+                else if (*read_reg_type == Y_REG_TYPE)
+                    reg_addr = OUT_Y_REG;
+                else
+                    reg_addr = OUT_Z_REG;
                 I2C1->DR = reg_addr;
+
+                reg_addr = LIS35DE_ADDR << 1 | 1;
+            }
         }
         else // etap MT: 2
             I2C1->DR = reg_addr;
@@ -292,10 +284,12 @@ int better_impl(
         // Musimy chwilowo wylaczyc przerwania TXE bo nic nie wysylamy
         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
 
-        if (!(*is_MR)) // etap MT: 4
+        if (!(*is_MR)) // etap MT: 4 - koniec
         {
             I2C1->CR1 |= I2C_CR1_START;
             *is_MR = true;
+            reg_addr = LIS35DE_ADDR << 1;
+
         }
     }
     else if (sr1 & I2C_SR1_TXE)
@@ -314,6 +308,7 @@ int better_impl(
         // inicjujemy kolejna transmisje
         *more_to_set = false;
         I2C1->CR1 |= I2C_CR1_START;
+        reg_addr = LIS35DE_ADDR << 1;
     }
 }
 
@@ -327,7 +322,7 @@ void I2C1_EV_IRQHandler()
 
     // Odczytujemy RAZ SR1 bo odczyt może zmienić bity i dwa odczyty pod rząd
     // mogą zwrócić różne wartości
-    uint16_t SR1 = I2C1->SR1;
+    uint16_t sr1 = I2C1->SR1;
 
     char op_type = q_front(&op_queue);
 
@@ -338,7 +333,7 @@ void I2C1_EV_IRQHandler()
     else  
         read_reg_addr = OUT_Z_REG;
 
-    better_impl(SR1, read_reg_addr, &is_MR, &more_to_set, &read_reg_type);
+    better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
     // if (op_type == INIT_POWER_EN_OPERATION)
     // {
     //     int ret_val = handle_init_power_en(&byte_type, SR1);
