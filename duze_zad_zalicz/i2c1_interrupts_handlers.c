@@ -240,16 +240,19 @@ void init_I2C1_interrupts_handlers_data()
 
 
 int better_impl(
-    uint16_t SR1, 
+    uint16_t sr1, 
     uint8_t reg_addr, 
     bool *is_MR, 
     bool *more_to_set,
     uint8_t *read_reg_type)
 {
-    if (SR1 & I2C_SR1_SB)
+    if (sr1 & I2C_SR1_SB)
     {
         if (*is_MR) // etap MR: 1
+        {
+            // Wlaczamy przerwania TXE 
             I2C1->CR2 |= I2C_CR2_ITBUFEN;
+        }
 
         I2C1->DR = reg_addr; // etap MT: 1
         
@@ -257,7 +260,7 @@ int better_impl(
             if (*more_to_set) // etap MR: 4
                 I2C1->CR1 &= ~I2C_CR1_ACK;
     }
-    else if (SR1 & I2C_SR1_ADDR)
+    else if (sr1 & I2C_SR1_ADDR)
     {
         I2C1->SR2;
         if (*is_MR)
@@ -275,7 +278,7 @@ int better_impl(
         else // etap MT: 2
             I2C1->DR = reg_addr;
     }
-    else if (SR1 & I2C_SR1_BTF)
+    else if (sr1 & I2C_SR1_BTF)
     {
         // etap MR: 3
         if (*is_MR)
@@ -286,8 +289,7 @@ int better_impl(
         else // etap MT: 4 
             I2C1->CR1 |= I2C_CR1_STOP;
 
-        // Musimy chwilowo wylaczyc przerwania bo nic nie wysylamy teraz, ale
-        // jak wrocimy z obslugi przerwania to od razu to wlaczymy
+        // Musimy chwilowo wylaczyc przerwania TXE bo nic nie wysylamy
         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
 
         if (!(*is_MR)) // etap MT: 4
@@ -296,12 +298,12 @@ int better_impl(
             *is_MR = true;
         }
     }
-    else if (SR1 & I2C_SR1_TXE)
+    else if (sr1 & I2C_SR1_TXE)
     {
         // etap MT: 3
         I2C1->DR = PD_EN;
     }
-    else if (SR1 & I2C_SR1_RXNE) // etap MR: 6
+    else if (sr1 & I2C_SR1_RXNE) // etap MR: 6
     {
         int8_t received_byte = I2C1->DR;
 
