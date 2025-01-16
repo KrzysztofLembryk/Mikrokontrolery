@@ -6,6 +6,8 @@
 #include "diods.h"
 #include "init_funcs.h"
 #include "queue.h"
+#include "buttons.h"
+#include "button_handlers.h"
 
 // KOMENDA WGRYWJACA PROGRAM NA PLYTKE
 // /opt/arm/stm32/ocd/qfn4
@@ -73,7 +75,13 @@
 
 QInfo dma_queue;
 QInfo op_queue;
+QInfo init_plus_pos_q;
 // BIAŁE -> ŻÓŁTE, czyli w MT INIT_BTF_FLAG_NOT_SET
+
+// ------------------------------------------------------------------------- 
+// ------------------------ DMA INTERRUPTS HANDLERS ------------------------
+// -------------------------------------------------------------------------
+
 void start_DMA_transmission()
 {
     static char send_buffer[3 * MAX_STR_LEN];
@@ -225,6 +233,70 @@ void power_diods(int ret_code)
     }
 }
 
+// -------------------------------------------------------------------------
+// --------------------- EXTERNAL INTERRUPTS HANDLERS ----------------------
+// -------------------------------------------------------------------------
+
+void EXTI15_10_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Center wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR10)
+    {
+        EXTI->PR = EXTI_PR_PR10;
+
+        handle_jstick(check_JstickCenterPressed(), &init_plus_pos_q);
+    }
+}
+
+void EXTI0_IRQHandler(void)
+{
+}
+
+void EXTI3_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Left wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR3)
+    {
+        EXTI->PR = EXTI_PR_PR3;
+
+        handle_jstick(check_JstickLeftPressed(), &init_plus_pos_q);
+    }
+}
+
+void EXTI4_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Right wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR4)
+    {
+        EXTI->PR = EXTI_PR_PR4;
+
+        handle_jstick(check_JstickRightPressed(), &init_plus_pos_q);
+    }
+}
+
+void EXTI9_5_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Up wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR5)
+    {
+        EXTI->PR = EXTI_PR_PR5;
+
+        handle_jstick(check_JstickUpPressed(), &init_plus_pos_q);
+    }
+
+    // Sprawdzamy czy JOYSTICK Down wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR6)
+    {
+        EXTI->PR = EXTI_PR_PR6;
+
+        handle_jstick(check_JstickDownPressed(), &init_plus_pos_q);
+    }
+}
+
+
+// -------------------------------------------------------------------------
+// ------------------------ I2C INTERRUPT HANDLERS -------------------------
+// -------------------------------------------------------------------------
 
 // UWAGA - trzeba zakolejkowac jakie operacje mamy wykonywac, czyli jak robimy
 // init power_en i potem robimy pierwsze odczyty, to zapisujemy te informacje 
@@ -580,6 +652,7 @@ void init_queues()
 {
     init_QInfo(&dma_queue, QUEUE_SIZE);
     init_QInfo(&op_queue, QUEUE_SIZE);
+    init_QInfo(&init_plus_pos_q, QUEUE_SIZE);
     // W op_queue trzymamy operacje ktore maja sie wykonac, najpierw 
     // inicjalizacja, ale potem musimy jeszcze zainicjalizowac repeated start
     // zeby moc odbierac dane, wiec jak skonczy sie inicjalizacja, to w 
@@ -602,6 +675,7 @@ int main()
     init_usart2_cr_registers();
     init_dma_cr_registers();
     init_dma_interrupts();
+    init_external_interrupts();
     init_I2C1();
     init_queues();
     init_I2C1_accelerometer_transmission();
