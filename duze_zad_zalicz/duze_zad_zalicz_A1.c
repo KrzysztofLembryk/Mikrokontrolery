@@ -153,7 +153,7 @@ void send_char_by_USART(char c)
 
 void power_diods(int ret_code)
 {
-    uint64_t delay_time = 500000;
+    uint64_t delay_time = 900000;
     static int is_MR = false;
     if (is_MR)
         return;
