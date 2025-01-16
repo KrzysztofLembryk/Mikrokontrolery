@@ -8,6 +8,7 @@
 #include "queue.h"
 #include "buttons.h"
 #include "button_handlers.h"
+#include "lcd.h"
 
 // KOMENDA WGRYWJACA PROGRAM NA PLYTKE
 // /opt/arm/stm32/ocd/qfn4
@@ -670,6 +671,7 @@ void init_I2C1_accelerometer_transmission()
 int main()
 {
     init_rcc();
+    LCDconfigure();
     init_diods();
     init_usart2_TXD_RXD_lines();
     init_usart2_cr_registers();
@@ -679,17 +681,57 @@ int main()
     init_I2C1();
     init_queues();
 
+
     char plus_pos_str[MAX_STR_LEN] = {0};
     int rmvd_str_len = 0;
+
+    int pos = 0;
+    int line = 0;
+
+    LCDclear();
+    LCDputchar('+');
+    // Tu bedziemy przesuwac znaczek plusa na wyswietlaczu LCD
+    char prev_movement = 'N';
     while (1)
     {
         if (!q_is_empty(&init_plus_pos_q))
         {
+            // char movement_direction;
             q_remove_str(plus_pos_str, &rmvd_str_len, &init_plus_pos_q);
-            q_add_str(plus_pos_str, &dma_queue);
-            try_to_start_DMA_transmission();
             if (plus_pos_str[0] == 'F')
                 break;
+            // q_add_str(plus_pos_str, &dma_queue);
+
+            // try_to_start_DMA_transmission();
+
+            // if (movement_direction == 'F')
+            //     break;
+            // else if (prev_movement == movement_direction)
+            // {
+            //     prev_movement = 'N';
+            //     continue;
+            // }
+            // else if (movement_direction == 'L')
+            // {
+            //     pos--;
+            // }
+            // else if (movement_direction == 'R')
+            // {
+            //     pos++;
+            // }
+            // else if (movement_direction == 'U')
+            // {
+            //     line--;
+            // }
+            // else if (movement_direction == 'D')
+            // {
+            //     line++;
+            // }
+
+            // prev_movement = movement_direction;
+            // LCDclear();
+            // LCDgoto(line, pos);
+            // LCDputchar('+');
         }
     }
 
