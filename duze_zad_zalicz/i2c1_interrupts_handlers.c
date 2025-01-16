@@ -153,7 +153,7 @@ void init_I2C1_accelerometer_transmission()
 QInfo data_queue;
 QInfo op_queue;
 
-void init_I2C1_interrupts_handlers_data()
+void init_queues()
 {
     init_QInfo(&data_queue, QUEUE_SIZE);
     init_QInfo(&op_queue, QUEUE_SIZE);

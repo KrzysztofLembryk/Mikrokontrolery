@@ -8,7 +8,7 @@
 
 void init_I2C1_accelerometer_transmission();
 
-void init_I2C1_interrupts_handlers_data();
+void init_queues();
 
 void I2C1_EV_IRQHandler();
 

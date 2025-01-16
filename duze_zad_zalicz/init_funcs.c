@@ -1,25 +1,25 @@
 #include "diods.h"
 #include "register_consts.h"
 #include "init_funcs.h"
-#include <xcat.h>
+// #include <xcat.h>
 
-#define I2C_GPIO_N  B
-#define I2C_SCL_PIN 8
-#define I2C_SDA_PIN 9
+// #define I2C_GPIO_N  B
+// #define I2C_SCL_PIN 8
+// #define I2C_SDA_PIN 9
 
-#define I2C_GPIO                xcat(GPIO, I2C_GPIO_N)
-#define RCC_AHB1ENR_I2C_GPIO_EN xcat3(RCC_AHB1ENR_GPIO, I2C_GPIO_N, EN)
+// #define I2C_GPIO                xcat(GPIO, I2C_GPIO_N)
+// #define RCC_AHB1ENR_I2C_GPIO_EN xcat3(RCC_AHB1ENR_GPIO, I2C_GPIO_N, EN)
 
-#define I2C_SCL_MASK (1 << I2C_SCL_PIN)
-#define I2C_SDA_MASK (1 << I2C_SDA_PIN)
+// #define I2C_SCL_MASK (1 << I2C_SCL_PIN)
+// #define I2C_SDA_MASK (1 << I2C_SDA_PIN)
 
-#define I2C_SCL_HIGH() I2C_GPIO->BSRR = I2C_SCL_MASK
-#define I2C_SCL_LOW()  I2C_GPIO->BSRR = I2C_SCL_MASK << 16
-#define I2C_SDA_HIGH() I2C_GPIO->BSRR = I2C_SDA_MASK
-#define I2C_SDA_LOW()  I2C_GPIO->BSRR = I2C_SDA_MASK << 16
+// #define I2C_SCL_HIGH() I2C_GPIO->BSRR = I2C_SCL_MASK
+// #define I2C_SCL_LOW()  I2C_GPIO->BSRR = I2C_SCL_MASK << 16
+// #define I2C_SDA_HIGH() I2C_GPIO->BSRR = I2C_SDA_MASK
+// #define I2C_SDA_LOW()  I2C_GPIO->BSRR = I2C_SDA_MASK << 16
 
-#define I2C_IS_SCL_LOW() ((I2C_GPIO->IDR & I2C_SCL_MASK) == 0)
-#define I2C_IS_SDA_LOW() ((I2C_GPIO->IDR & I2C_SDA_MASK) == 0)
+// #define I2C_IS_SCL_LOW() ((I2C_GPIO->IDR & I2C_SCL_MASK) == 0)
+// #define I2C_IS_SDA_LOW() ((I2C_GPIO->IDR & I2C_SDA_MASK) == 0)
 
 
 void init_diods()
@@ -71,7 +71,8 @@ void init_rcc()
     // involved in the data transfer.
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
                     RCC_AHB1ENR_GPIOBEN |
-                    RCC_AHB1ENR_GPIOCEN;
+                    RCC_AHB1ENR_GPIOCEN |
+                    RCC_AHB1ENR_DMA1EN; // wlaczamy DMA1
 
     // APB1ENR - rejestr w RCC do wlaczania zegara dla peryferiow podpietych do
     // magistrali APB1, czyli np. USART, TIM, SPI, USART2, I2C
@@ -115,8 +116,10 @@ void init_usart2_cr_registers()
     // CR2 - ustawienie bitow stopu
     USART2->CR2 = USART_StopBits_1;
 
-    // CR3
-    USART2->CR3 = USART_FlowControl_None;
+    // CR3- dodajemy wysylanie i odbieranie danych przez DMA
+    USART2->CR3 = USART_FlowControl_None |
+                  USART_DMA_Tx_En |
+                  USART_DMA_Rx_En;
 
     // BRR - ustawienie predkosci transmisji danych
     USART2->BRR = (PCLK1_HZ + (BAUD / 2U)) / BAUD;
@@ -124,6 +127,47 @@ void init_usart2_cr_registers()
     // Teraz chcemy uaktywnic interfejs USART, wiec
     // ustawiamy bit USART_Enable w rejestrze CR1
     USART2->CR1 |= USART_Enable;
+}
+
+
+void init_dma_cr_registers()
+{
+    // -----KONFIGURACJA NADAWCZEGO STRUMIENIA DMA-----
+    // USART2 TX korzysta ze strumienia 6 i kanału 4, tryb bezpośredni, 
+    // transfery 8-bitowe, wysoki priorytet, zwiększanie adresu pamięci po 
+    // każdym przesłaniu, przerwanie po zakończeniu transmisji
+    DMA1_Stream6->CR = 4U << 25 | // Channel 4
+                       DMA_SxCR_PL_1 | // Priority level - high
+                       DMA_SxCR_MINC | // Memory increment mode
+                       DMA_SxCR_DIR_0 | // Direction - memory to peripheral
+                       DMA_SxCR_TCIE; // Transfer complete interrupt enable
+
+    // Ustawiamy adres pamieci ukladu peryferyjnego, 
+    // on sie oczywiscie nie zmienia
+    DMA1_Stream6->PAR = (uint32_t)&USART2->DR;
+    // ------------------------------------------------
+
+    // -----KONFIGURACJA ODBIORCZEGO STRUMIENIA DMA-----
+    // numer kanalu jest zapisywany w 25-27 bitach rejestru CR, dlatego 
+    // latwiej jest przesunac 4U o 25 bitow w lewo niz 1 o 27 bitow w lewo
+    DMA1_Stream5->CR = 4U << 25 | // Channel 4
+                       DMA_SxCR_PL_1 | // Priority level - high
+                       DMA_SxCR_MINC | // Memory increment mode
+                       DMA_SxCR_TCIE; // Transfer complete interrupt enable
+    DMA1_Stream5->PAR = (uint32_t)&USART2->DR;
+    // ------------------------------------------------
+}
+
+void init_dma_interrupts()
+{
+    // Wyczyszczenie znacznikow przerwan i wlaczenie przerwan dla 
+    // DMA1_Stream6 i DMA1_Stream5
+    DMA1->HIFCR = DMA_HIFCR_CTCIF6 | DMA_HIFCR_CTCIF5;
+    NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+    NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+
+    // Uaktywnienie ukladow peryferyjnych
+    USART2->CR1 |= USART_CR1_UE;
 }
 
 void init_I2C1()
