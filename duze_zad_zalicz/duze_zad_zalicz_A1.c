@@ -24,6 +24,11 @@ int main()
     init_I2C1_interrupts_handlers_data();
     init_I2C1_accelerometer_transmission();
 
+
+    if (USART2->SR & USART_SR_TXE)
+    {
+        USART2->DR = 'k';
+    }
     while (1)
     {
         if (USART2->SR & USART_SR_TXE)

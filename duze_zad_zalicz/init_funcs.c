@@ -1,6 +1,26 @@
 #include "diods.h"
 #include "register_consts.h"
 #include "init_funcs.h"
+#include <xcat.h>
+
+#define I2C_GPIO_N  B
+#define I2C_SCL_PIN 8
+#define I2C_SDA_PIN 9
+
+#define I2C_GPIO                xcat(GPIO, I2C_GPIO_N)
+#define RCC_AHB1ENR_I2C_GPIO_EN xcat3(RCC_AHB1ENR_GPIO, I2C_GPIO_N, EN)
+
+#define I2C_SCL_MASK (1 << I2C_SCL_PIN)
+#define I2C_SDA_MASK (1 << I2C_SDA_PIN)
+
+#define I2C_SCL_HIGH() I2C_GPIO->BSRR = I2C_SCL_MASK
+#define I2C_SCL_LOW()  I2C_GPIO->BSRR = I2C_SCL_MASK << 16
+#define I2C_SDA_HIGH() I2C_GPIO->BSRR = I2C_SDA_MASK
+#define I2C_SDA_LOW()  I2C_GPIO->BSRR = I2C_SDA_MASK << 16
+
+#define I2C_IS_SCL_LOW() ((I2C_GPIO->IDR & I2C_SCL_MASK) == 0)
+#define I2C_IS_SDA_LOW() ((I2C_GPIO->IDR & I2C_SDA_MASK) == 0)
+
 
 void init_diods()
 {
@@ -40,25 +60,25 @@ void init_rcc()
     // Czym jest RCC:
     // --> RCC (Reset and Clock Control) is a peripheral
     // in STM32 microcontrollers that manages the system clocks and resets.
-    // It controls the clock distribution to various peripherals and modules 
+    // It controls the clock distribution to various peripherals and modules
     // within the microcontroller, enabling or disabling their clocks as needed.
-    // This is crucial for power management and ensuring that peripherals only 
+    // This is crucial for power management and ensuring that peripherals only
     // consume power when they are in use.
 
     // Czym jest DMA:
     // --> DMA (Direct Memory Access) is a peripheral that can transfer data
     // from one memory location to another without the need for the CPU to be
-    // involved in the data transfer. 
+    // involved in the data transfer.
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
                     RCC_AHB1ENR_GPIOBEN |
-                    RCC_AHB1ENR_GPIOCEN; 
+                    RCC_AHB1ENR_GPIOCEN;
 
     // APB1ENR - rejestr w RCC do wlaczania zegara dla peryferiow podpietych do
     // magistrali APB1, czyli np. USART, TIM, SPI, USART2, I2C
     // APB1ENR - Advanced Peripheral Bus 1 Enable Register
     // wlaczamy zegar dla I2C1
     RCC->APB1ENR |= RCC_APB1ENR_I2C1EN |
-                    RCC_APB1ENR_USART2EN; 
+                    RCC_APB1ENR_USART2EN;
 }
 
 void init_usart2_TXD_RXD_lines()
@@ -108,37 +128,71 @@ void init_usart2_cr_registers()
 
 void init_I2C1()
 {
-    // Linie SCL (Serial Clock Line) i SDA (Serial Data Line) są podstawowymi 
+    // __NOP();
+
+    // /* Najpierw odwieś szynę I2C. To jest czysta heureza. */
+
+    // I2C_SCL_HIGH();
+    // I2C_SDA_HIGH(); // NACK
+    // GPIOoutConfigure(I2C_GPIO, I2C_SCL_PIN, GPIO_OType_OD, GPIO_Low_Speed,
+    //                  GPIO_PuPd_NOPULL);
+    // GPIOoutConfigure(I2C_GPIO, I2C_SDA_PIN, GPIO_OType_OD, GPIO_Low_Speed,
+    //                  GPIO_PuPd_NOPULL);
+
+    // // Taktuj szynę z częstotliwością około 12,5 kHz.
+    // unsigned half_cycle = (PCLK1_MHZ * 1000000) / 100000;
+
+    // // Dokończ ewentualnie niedokończoną transmisję, wystawiając NACK.
+    // Delay(half_cycle);
+    // for (unsigned i = 0; i < 9 || I2C_IS_SDA_LOW(); ++i)
+    // {
+    //     I2C_SCL_LOW();
+    //     Delay(half_cycle);
+    //     I2C_SCL_HIGH();
+    //     Delay(half_cycle);
+    // }
+
+    // Delay(half_cycle);
+    // I2C_SDA_LOW();
+    // Delay(half_cycle);
+    // I2C_SCL_LOW(); // START
+    // Delay(2 * half_cycle);
+    // I2C_SCL_HIGH(); // STOP
+    // Delay(half_cycle);
+    // I2C_SDA_HIGH();
+    // Delay(half_cycle);
+
+    // Linie SCL (Serial Clock Line) i SDA (Serial Data Line) są podstawowymi
     // liniami komunikacyjnymi w protokole I2C (Inter-Integrated Circuit)
 
-    // SCL (Serial Clock Line): Linia zegarowa, która synchronizuje przesyłanie 
+    // SCL (Serial Clock Line): Linia zegarowa, która synchronizuje przesyłanie
     // danych między urządzeniami master i slave.
     // Urządzenie master generuje sygnał zegarowy na linii SCL.
-    // Urządzenia slave odbierają sygnał zegarowy i synchronizują swoje 
+    // Urządzenia slave odbierają sygnał zegarowy i synchronizują swoje
     // operacje z tym zegarem.
 
-    // SDA (Serial Data Line): Linia danych, która przesyła dane między 
+    // SDA (Serial Data Line): Linia danych, która przesyła dane między
     // urządzeniami master i slave.
-    // Linia SDA jest dwukierunkowa, co oznacza, że zarówno urządzenie master, 
+    // Linia SDA jest dwukierunkowa, co oznacza, że zarówno urządzenie master,
     // jak i slave mogą wysyłać i odbierać dane.
-    // Dane są przesyłane w formie bitów, zsynchronizowanych z sygnałem 
+    // Dane są przesyłane w formie bitów, zsynchronizowanych z sygnałem
     // zegarowym na linii SCL.
 
-    // Akceleromter podlaczony jest o magistrali I2C, a na niej do 
+    // Akceleromter podlaczony jest o magistrali I2C, a na niej do
     // ukladu I2C1, lini SCL na pinie PB8 i SDA na pinie PB9
     // Wlaczamy linie SCL akcelerometru
-    GPIOafConfigure(GPIOB, 
-                    8, 
+    GPIOafConfigure(GPIOB,
+                    8,
                     GPIO_OType_OD,
-                    GPIO_Low_Speed, 
+                    GPIO_Low_Speed,
                     GPIO_PuPd_NOPULL,
                     GPIO_AF_I2C1);
 
     // Wlaczamy linie SDA akcelerometru
-    GPIOafConfigure(GPIOB, 
-                    9, 
+    GPIOafConfigure(GPIOB,
+                    9,
                     GPIO_OType_OD,
-                    GPIO_Low_Speed, 
+                    GPIO_Low_Speed,
                     GPIO_PuPd_NOPULL,
                     GPIO_AF_I2C1);
 
@@ -147,7 +201,7 @@ void init_I2C1()
     // Ustawiamy odpowiednia czestotliowsc taktowania szyny I2C
     I2C1->CCR = (PCLK1_MHZ * 1000000) / (I2C_SPEED_HZ << 1);
 
-    // Ustawiamy odpowiednia czestotliowsc taktowania szyny I2C 
+    // Ustawiamy odpowiednia czestotliowsc taktowania szyny I2C
     // Aktywujemy przerwania za pomoca CR2 i bitow:
     // I2C_CR2_ ITBUFEN, ITEVTEN, ITERREN
     I2C1->CR2 = PCLK1_MHZ |
@@ -167,5 +221,4 @@ void init_I2C1()
     I2C1->CR1 |= I2C_CR1_PE;
 
     // !! rejestry I2C1 sa 16bitowe
-
 }

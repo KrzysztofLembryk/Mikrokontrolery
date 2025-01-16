@@ -49,9 +49,94 @@
 #define BTF_FLAG_NOT_SET 4
 #define OTHER_ERROR 5
 
+#define INIT_SB_FLAG_NOT_SET 6
+#define INIT_ADDR_FLAG_NOT_SET 7
+#define INIT_TXE_FLAG_NOT_SET 8
+#define INIT_BTF_FLAG_NOT_SET 9
+
 // OPERACJE NA KOLEJCE
 #define INIT_POWER_EN_OPERATION 'I'
 #define REPEATED_START_OPERATION 'R'
+
+// BIAŁE -> ŻÓŁTE, czyli w MT INIT_BTF_FLAG_NOT_SET
+
+void send_char_by_USART(char c)
+{
+    if (USART2->SR & USART_SR_TXE)
+    {
+        USART2->DR = c;
+    }
+}
+
+void power_diods(int ret_code)
+{
+    uint64_t delay_time = 9000000;
+    if (ret_code == SB_FLAG_NOT_SET)
+    {
+        RedLEDon();
+        Delay(delay_time);
+        RedLEDoff();
+    }
+    else if (ret_code == ADDR_FLAG_NOT_SET)
+    {
+        GreenLEDon();
+        Delay(delay_time);
+        GreenLEDoff();
+    }
+    else if (ret_code == TXE_FLAG_NOT_SET)
+    {
+        BlueLEDon();
+        Delay(delay_time);
+        BlueLEDoff();
+    }
+    else if (ret_code == BTF_FLAG_NOT_SET)
+    {
+        GreenLEDon();
+        RedLEDon();
+        Delay(delay_time);
+        GreenLEDoff();
+        RedLEDoff();
+    }
+    else 
+    {
+        // ERROR w INIT, czyli kiedy tryb MT
+        RedLEDon();
+        BlueLEDon();
+        GreenLEDon();
+        Delay(delay_time);
+        RedLEDoff();
+        BlueLEDoff();
+        GreenLEDoff();
+
+        if (ret_code == INIT_SB_FLAG_NOT_SET)
+        {
+            RedLEDon();
+            Delay(delay_time);
+            RedLEDoff();
+        }
+        else if (ret_code == INIT_ADDR_FLAG_NOT_SET)
+        {
+            GreenLEDon();
+            Delay(delay_time);
+            GreenLEDoff();
+        }
+        else if (ret_code == INIT_TXE_FLAG_NOT_SET)
+        {
+            BlueLEDon();
+            Delay(delay_time);
+            BlueLEDoff();
+        }
+        else if (ret_code == INIT_BTF_FLAG_NOT_SET)
+        {
+            GreenLEDon();
+            RedLEDon();
+            Delay(delay_time);
+            GreenLEDoff();
+            RedLEDoff();
+        }
+    }
+}
+
 
 void init_I2C1_accelerometer_transmission()
 {
@@ -82,141 +167,149 @@ void init_I2C1_interrupts_handlers_data()
 }
 
 
-// int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
-// {
-//     // Musimy czekac az kolejka nadawcza bedzie pusta, zeby czegos co chcielismy
-//     // wyslac nie nadpisac. Moze sie zdarzyc tak ze SB ustawiony ale TXE jeszcze
-//     // nie pusty czy cos takiego
-//     // if (!(SR1 & I2C_SR1_TXE))
-//     // {
-//     //     return TXE_FLAG_NOT_SET;
-//     // }
+int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
+{
+    // Musimy czekac az kolejka nadawcza bedzie pusta, zeby czegos co chcielismy
+    // wyslac nie nadpisac. Moze sie zdarzyc tak ze SB ustawiony ale TXE jeszcze
+    // nie pusty czy cos takiego
+    // if (!(SR1 & I2C_SR1_TXE))
+    // {
+    //     return TXE_FLAG_NOT_SET;
+    // }
 
-//     switch (*byte_type)
-//     {
-//     case INIT_POWER_EN_SEND_SLAVE_ADDR:
-//         if (!(SR1 & I2C_SR1_SB))
-//             return SB_FLAG_NOT_SET;
+    switch (*byte_type)
+    {
+    case INIT_POWER_EN_SEND_SLAVE_ADDR:
+        if (!(SR1 & I2C_SR1_SB))
+            return INIT_SB_FLAG_NOT_SET;
 
-//         *byte_type = INIT_POWER_EN_SEND_CTRL_REG_ADDR;
-//         I2C1->DR = LIS35DE_ADDR << 1;
+        *byte_type = INIT_POWER_EN_SEND_CTRL_REG_ADDR;
+        I2C1->DR = LIS35DE_ADDR << 1;
 
-//         return OK;
-//     case INIT_POWER_EN_SEND_CTRL_REG_ADDR:
-//         if (!(SR1 & I2C_SR1_ADDR))
-//             return ADDR_FLAG_NOT_SET;
+        return OK;
+    case INIT_POWER_EN_SEND_CTRL_REG_ADDR:
+        if (!(SR1 & I2C_SR1_ADDR))
+            return INIT_ADDR_FLAG_NOT_SET;
 
-//         *byte_type = INIT_POWER_EN_SEND_CTRL_REG_DATA;
-//         // odczytujemy SR2, aby wyczyscic bit ADDR, jest to wymagane aby
-//         // zakonczyc procedure adresowania i przejsc do nastepnego etapu
-//         // transmisji
-//         I2C1->SR2;
-//         I2C1->DR = CTRL_REG1;
+        *byte_type = INIT_POWER_EN_SEND_CTRL_REG_DATA;
+        // odczytujemy SR2, aby wyczyscic bit ADDR, jest to wymagane aby
+        // zakonczyc procedure adresowania i przejsc do nastepnego etapu
+        // transmisji
+        I2C1->SR2;
+        I2C1->DR = CTRL_REG1;
 
-//         return OK;
-//     case INIT_POWER_EN_SEND_CTRL_REG_DATA:
-//         // Tutaj wystarczy nam że flaga TXE jest ustawiona 
-//         if (!(SR1 & I2C_SR1_TXE))
-//             return TXE_FLAG_NOT_SET;
+        return OK;
+    case INIT_POWER_EN_SEND_CTRL_REG_DATA:
+        // Tutaj wystarczy nam że flaga TXE jest ustawiona 
+        if (!(SR1 & I2C_SR1_TXE))
+            return INIT_TXE_FLAG_NOT_SET;
 
-//         *byte_type = INIT_POWER_EN_END_TRANSMISSION;
-//         I2C1->DR = PD_EN;
+        *byte_type = INIT_POWER_EN_END_TRANSMISSION;
+        I2C1->DR = PD_EN;
 
-//         return OK;
-//     case INIT_POWER_EN_END_TRANSMISSION:
-//         if (!(SR1 & I2C_SR1_BTF))
-//             return BTF_FLAG_NOT_SET;
-//         *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
+        return OK;
+    case INIT_POWER_EN_END_TRANSMISSION:
+        if (!(SR1 & I2C_SR1_BTF))
+            return INIT_BTF_FLAG_NOT_SET;
+        *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
 
-//         // Nie mamy juz nic do wyslania bo koniec inicjacji, wiec wylaczamy 
-//         // przerwania bo ciagle by sie one generowaly bo nic nie dodalismy do DR
-//         I2C1->CR1 |= I2C_CR1_STOP;
-//         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+        // Nie mamy juz nic do wyslania bo koniec inicjacji, wiec wylaczamy 
+        // przerwania bo ciagle by sie one generowaly bo nic nie dodalismy do DR
+        I2C1->CR1 |= I2C_CR1_STOP;
+        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
 
-//         // zdejmujemy operacje inicjalizacji z kolejki
-//         char op_type; 
-//         q_remove(&op_type, &op_queue);
-//         if (op_type != INIT_POWER_EN_OPERATION)
-//             return OTHER_ERROR;
+        // zdejmujemy operacje inicjalizacji z kolejki
+        char op_type; 
+        q_remove(&op_type, &op_queue);
+        if (op_type != INIT_POWER_EN_OPERATION)
+        {
+            send_char_by_USART('I');
+            return OTHER_ERROR;
+        }
 
-//         // Sprawdzamy czy jest jeszcze cos na kolejce, jesli tak to 
-//         // inicjalizujemy
-//         op_type = q_front(&op_queue);
-//         if (op_type != REPEATED_START_OPERATION)
-//             return OTHER_ERROR;
+        // Sprawdzamy czy jest jeszcze cos na kolejce, jesli tak to 
+        // inicjalizujemy
+        op_type = q_front(&op_queue);
+        if (op_type != REPEATED_START_OPERATION)
+        {
+            send_char_by_USART('R');
+            return OTHER_ERROR;
+        }
 
-//         // Inicjalizujemy transmisje sygnalu start zeby wlaczyc tryb MR
-//         I2C1->CR1 |= I2C_CR1_START;
+        // Inicjalizujemy transmisje sygnalu start zeby wlaczyc tryb MR
+        I2C1->CR1 |= I2C_CR1_START;
 
-//         return OK;
-//     default:
-//         return OTHER_ERROR;
-//     }
-// }
+        return OK;
+    default:
+        send_char_by_USART('O');
+        return OTHER_ERROR;
+    }
+}
 
-// int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
-// {
-//     switch (*byte_type)
-//     {
-//     case START_TRANSSMISION_SEND_SLAVE_ADDR:
-//         if (!(SR1 & I2C_SR1_SB))
-//             return SB_FLAG_NOT_SET;
+int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
+{
+    switch (*byte_type)
+    {
+    case START_TRANSSMISION_SEND_SLAVE_ADDR:
+        if (!(SR1 & I2C_SR1_SB))
+            return SB_FLAG_NOT_SET;
         
-//         *byte_type = SEND_READ_REG_ADDR;
-//         // wlaczamy przerwania TXE bo cos wysylamy
-//         I2C1->CR2 |= I2C_CR2_ITBUFEN;
-//         I2C1->DR = LIS35DE_ADDR << 1;
+        *byte_type = SEND_READ_REG_ADDR;
+        // wlaczamy przerwania TXE bo cos wysylamy
+        I2C1->CR2 |= I2C_CR2_ITBUFEN;
+        I2C1->DR = LIS35DE_ADDR << 1;
 
-//         return OK;
-//     case SEND_READ_REG_ADDR:
-//         // Sprawdzamy czy adres zostal wyslany, jesli tak to mozemy wyslac 
-//         // adres z ktorego chcemy odczytac dane
-//         if (!(SR1 & I2C_SR1_ADDR))
-//             return ADDR_FLAG_NOT_SET;
+        return OK;
+    case SEND_READ_REG_ADDR:
+        // Sprawdzamy czy adres zostal wyslany, jesli tak to mozemy wyslac 
+        // adres z ktorego chcemy odczytac dane
+        if (!(SR1 & I2C_SR1_ADDR))
+            return ADDR_FLAG_NOT_SET;
 
-//         *byte_type = SEND_REPEATED_START;
-//         I2C1->SR2;
-//         I2C1->DR = read_reg_addr;
+        *byte_type = SEND_REPEATED_START;
+        I2C1->SR2;
+        I2C1->DR = read_reg_addr;
 
-//         return OK;
-//     case SEND_REPEATED_START:
-//         if (!(SR1 & I2C_SR1_BTF))
-//             return BTF_FLAG_NOT_SET;
+        return OK;
+    case SEND_REPEATED_START:
+        if (!(SR1 & I2C_SR1_BTF))
+            return BTF_FLAG_NOT_SET;
 
-//         *byte_type = SEND_SLAVE_ADDR_MR;
-//         I2C1->CR1 |= I2C_CR1_START;
-//         // Musimy chwilowo wylaczyc przerwania bo nic nie wysylamy teraz, ale
-//         // jak wrocimy z obslugi przerwania to od razu to wlaczymy
-//         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-//         return OK;
-//     case SEND_SLAVE_ADDR_MR:
-//         if (!(SR1 & I2C_SR1_SB))
-//             return SB_FLAG_NOT_SET;
+        *byte_type = SEND_SLAVE_ADDR_MR;
+        I2C1->CR1 |= I2C_CR1_START;
+        // Musimy chwilowo wylaczyc przerwania bo nic nie wysylamy teraz, ale
+        // jak wrocimy z obslugi przerwania to od razu to wlaczymy
+        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+        return OK;
+    case SEND_SLAVE_ADDR_MR:
+        if (!(SR1 & I2C_SR1_SB))
+            return SB_FLAG_NOT_SET;
 
-//         // Wlaczamy przerwania TXE bo cos wysylamy
-//         I2C1->CR2 |= I2C_CR2_ITBUFEN;
-//         *byte_type = END_SENDING;
-//         I2C1->DR = LIS35DE_ADDR << 1 | 1;
-//         // Ponieważ ma być odebrany tylko jeden bajt, ustaw wysłanie
-//         // sygnału NACK, zerując bit ACK
-//         I2C1->CR1 &= ~I2C_CR1_ACK;
-//         return OK;
-//     case END_SENDING:
-//         if(!(SR1 & I2C_SR1_ADDR))
-//             return ADDR_FLAG_NOT_SET;
+        // Wlaczamy przerwania TXE bo cos wysylamy
+        I2C1->CR2 |= I2C_CR2_ITBUFEN;
+        *byte_type = END_SENDING;
+        I2C1->DR = LIS35DE_ADDR << 1 | 1;
+        // Ponieważ ma być odebrany tylko jeden bajt, ustaw wysłanie
+        // sygnału NACK, zerując bit ACK
+        I2C1->CR1 &= ~I2C_CR1_ACK;
+        return OK;
+    case END_SENDING:
+        if(!(SR1 & I2C_SR1_ADDR))
+            return ADDR_FLAG_NOT_SET;
 
-//         *byte_type = RECEIVE_DATA;
-//         // kasujemy bit ADDR
-//         I2C1->SR2;
-//         // Zainicjuj transmisję sygnału STOP
-//         I2C1->CR1 |= I2C_CR1_STOP;
-//         // WYlaczamy przerwanie TxE bo nic nie wysylamy
-//         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-//         return OK;
-//     default:
-//         return OTHER_ERROR;
-//     }
-// }
+        *byte_type = RECEIVE_DATA;
+        // kasujemy bit ADDR
+        I2C1->SR2;
+        // Zainicjuj transmisję sygnału STOP
+        I2C1->CR1 |= I2C_CR1_STOP;
+        // Nie mozemy wylaczyc  przerwanie TxE, bo wylaczy sie tez RxNE 
+        // I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+        return OK;
+    default:
+        send_char_by_USART('o');
+        return OTHER_ERROR;
+    }
+}
 
 
 int better_impl(
@@ -238,8 +331,12 @@ int better_impl(
         I2C1->DR = reg_addr; // etap MT: 1
         
         if (*is_MR)
+        {
             if (*more_to_set) // etap MR: 4
+            {
                 I2C1->CR1 &= ~I2C_CR1_ACK;
+            }
+        }
         else 
         {
             reg_addr = CTRL_REG1;
@@ -341,78 +438,37 @@ void I2C1_EV_IRQHandler()
     else  
         read_reg_addr = OUT_Z_REG;
 
-    better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
-    // if (op_type == INIT_POWER_EN_OPERATION)
-    // {
-    //     int ret_val = handle_init_power_en(&byte_type, SR1);
+    // better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
+    if (op_type == INIT_POWER_EN_OPERATION)
+    {
+        send_char_by_USART('i');
+        int ret_val = handle_init_power_en(&byte_type, sr1);
 
-    //     if (ret_val != OK)
-    //     {
-    //         RedLEDon();
-    //         GreenLEDon();
-    //         BlueLEDon();
-    //         Delay(200000000);
-    //         RedLEDoff();
-    //         GreenLEDoff();
-    //         BlueLEDoff();
-    //     }
-    // }
-    // else if (op_type == REPEATED_START_OPERATION)
-    // {
-    //     if (byte_type == RECEIVE_DATA)
-    //     {
-    //         if (SR1 & I2C_SR1_RXNE)
-    //         {
-    //             int8_t received_byte = I2C1->DR;
+        if (ret_val != OK)
+            power_diods(ret_val);
+    }
+    else if (op_type == REPEATED_START_OPERATION)
+    {
+        if (byte_type == RECEIVE_DATA)
+        {
+            if (sr1 & I2C_SR1_RXNE)
+            {
+                int8_t received_byte = I2C1->DR;
 
-    //             q_add_xyz(received_byte, read_reg_type, &data_queue);
+                q_add_xyz(received_byte, read_reg_type, &data_queue);
 
-    //             read_reg_type = (read_reg_type + 1) % 3;
+                read_reg_type = (read_reg_type + 1) % 3;
 
-    //             // inicjujemy kolejna transmisje
-    //             byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
-    //             I2C1->CR1 |= I2C_CR1_START;
-    //         }
-    //     }
-    //     else 
-    //     {
-    //         int ret_val = handle_MR_mode(read_reg_addr, &byte_type, SR1);
-    //         if (ret_val != OK)
-    //         {
-    //             if (ret_val == SB_FLAG_NOT_SET)
-    //             {
-    //                 RedLEDon();
-    //                 Delay(2000000);
-    //                 RedLEDoff();
-    //             }
-    //             else if (ret_val == ADDR_FLAG_NOT_SET)
-    //             {
-    //                 GreenLEDon();
-    //                 Delay(2000000);
-    //                 GreenLEDoff();
-    //             }
-    //             else if (ret_val == TXE_FLAG_NOT_SET)
-    //             {
-    //                 BlueLEDon();
-    //                 Delay(2000000);
-    //                 BlueLEDoff();
-    //             }
-    //             else if (ret_val == BTF_FLAG_NOT_SET)
-    //             {
-    //                 Green2LEDon();
-    //                 Delay(2000000);
-    //                 Green2LEDoff();
-    //             }
-    //             else
-    //             {
-    //                 RedLEDon();
-    //                 Delay(2000000);
-    //                 RedLEDoff();
-    //                 GreenLEDon();
-    //                 Delay(2000000);
-    //                 GreenLEDoff();
-    //             }
-    //         }
-    //     }
-    // }
+                // inicjujemy kolejna transmisje
+                byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
+                I2C1->CR1 |= I2C_CR1_START;
+            }
+        }
+        else 
+        {
+            int ret_val = handle_MR_mode(read_reg_addr, &byte_type, sr1);
+            if (ret_val != OK)
+                power_diods(ret_val);
+        }
+    }
 }
