@@ -154,6 +154,10 @@ void send_char_by_USART(char c)
 void power_diods(int ret_code)
 {
     uint64_t delay_time = 500000;
+    static int is_MR = false;
+    if (is_MR)
+        return;
+
     if (ret_code == SB_FLAG_NOT_SET)
     {
         RedLEDon();
@@ -179,6 +183,7 @@ void power_diods(int ret_code)
         Delay(delay_time);
         GreenLEDoff();
         RedLEDoff();
+        is_MR = true;
     }
     else 
     {
@@ -544,7 +549,7 @@ void I2C1_EV_IRQHandler()
             {
                 int8_t received_byte = I2C1->DR;
 
-                if (timer % 151 == 0)
+                if (timer % 121 == 0)
                 {
                     timer = 0;
                     q_add_xyz(received_byte, read_reg_type, &dma_queue);
