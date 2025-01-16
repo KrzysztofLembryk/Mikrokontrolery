@@ -14,7 +14,7 @@ LDFLAGS = $(FLAGS) -Wl,--gc-sections -nostartfiles \
 vpath %.c /opt/arm/stm32/src
 
 OBJECTS = duze_zad_zalicz_A1.o startup_stm32.o delay.o gpio.o \
-			init_funcs.o queue.o
+			init_funcs.o queue.o buttons.o button_handlers.o
 TARGET = comm
 
 .SECONDARY: $(TARGET).elf $(OBJECTS)

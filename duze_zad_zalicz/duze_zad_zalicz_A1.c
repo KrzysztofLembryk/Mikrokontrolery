@@ -678,9 +678,25 @@ int main()
     init_external_interrupts();
     init_I2C1();
     init_queues();
-    init_I2C1_accelerometer_transmission();
 
+    char plus_pos_str[MAX_STR_LEN] = {0};
+    int rmvd_str_len = 0;
     while (1)
     {
+        if (!q_is_empty(&init_plus_pos_q))
+        {
+            q_remove_str(plus_pos_str, &rmvd_str_len, &init_plus_pos_q);
+            q_add_str(plus_pos_str, &dma_queue);
+            try_to_start_DMA_transmission();
+            if (plus_pos_str[0] == 'F')
+                break;
+        }
+    }
+
+    init_I2C1_accelerometer_transmission();
+
+    while(1) 
+    {
+
     }
 }
