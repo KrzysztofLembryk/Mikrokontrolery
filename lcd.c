@@ -13,43 +13,43 @@ constants LCD_*_PIN_N are the port output numbers (from 0 to 15),
 constants GPIO_LCD_* are memory pointers,
 constants PIN_LCD_* and RCC_LCD_* are bit masks. */
 
-#define GPIO_LCD_CS xcat(GPIO, LCD_CS_GPIO_N)
-#define GPIO_LCD_A0 xcat(GPIO, LCD_A0_GPIO_N)
-#define GPIO_LCD_SDA xcat(GPIO, LCD_SDA_GPIO_N)
-#define GPIO_LCD_SCK xcat(GPIO, LCD_SCK_GPIO_N)
+#define GPIO_LCD_CS   xcat(GPIO, LCD_CS_GPIO_N)
+#define GPIO_LCD_A0   xcat(GPIO, LCD_A0_GPIO_N)
+#define GPIO_LCD_SDA  xcat(GPIO, LCD_SDA_GPIO_N)
+#define GPIO_LCD_SCK  xcat(GPIO, LCD_SCK_GPIO_N)
 
-#define PIN_LCD_CS (1U << LCD_CS_PIN_N)
-#define PIN_LCD_A0 (1U << LCD_A0_PIN_N)
-#define PIN_LCD_SDA (1U << LCD_SDA_PIN_N)
-#define PIN_LCD_SCK (1U << LCD_SCK_PIN_N)
+#define PIN_LCD_CS    (1U << LCD_CS_PIN_N)
+#define PIN_LCD_A0    (1U << LCD_A0_PIN_N)
+#define PIN_LCD_SDA   (1U << LCD_SDA_PIN_N)
+#define PIN_LCD_SCK   (1U << LCD_SCK_PIN_N)
 
-#define RCC_LCD_CS xcat3(RCC_AHB1ENR_GPIO, LCD_CS_GPIO_N, EN)
-#define RCC_LCD_A0 xcat3(RCC_AHB1ENR_GPIO, LCD_A0_GPIO_N, EN)
-#define RCC_LCD_SDA xcat3(RCC_AHB1ENR_GPIO, LCD_SDA_GPIO_N, EN)
-#define RCC_LCD_SCK xcat3(RCC_AHB1ENR_GPIO, LCD_SCK_GPIO_N, EN)
+#define RCC_LCD_CS    xcat3(RCC_AHB1ENR_GPIO, LCD_CS_GPIO_N, EN)
+#define RCC_LCD_A0    xcat3(RCC_AHB1ENR_GPIO, LCD_A0_GPIO_N, EN)
+#define RCC_LCD_SDA   xcat3(RCC_AHB1ENR_GPIO, LCD_SDA_GPIO_N, EN)
+#define RCC_LCD_SCK   xcat3(RCC_AHB1ENR_GPIO, LCD_SCK_GPIO_N, EN)
 
 /* Screen size in pixels, left top corner has coordinates (0, 0). */
 
-#define LCD_PIXEL_WIDTH 128
-#define LCD_PIXEL_HEIGHT 160
+#define LCD_PIXEL_WIDTH   128
+#define LCD_PIXEL_HEIGHT  160
 
 /* Some color definitions */
 
-#define LCD_COLOR_WHITE 0xFFFF
-#define LCD_COLOR_BLACK 0x0000
-#define LCD_COLOR_GREY 0xF7DE
-#define LCD_COLOR_BLUE 0x001F
-#define LCD_COLOR_BLUE2 0x051F
-#define LCD_COLOR_RED 0xF800
-#define LCD_COLOR_MAGENTA 0xF81F
-#define LCD_COLOR_GREEN 0x07E0
-#define LCD_COLOR_CYAN 0x7FFF
-#define LCD_COLOR_YELLOW 0xFFE0
+#define LCD_COLOR_WHITE    0xFFFF
+#define LCD_COLOR_BLACK    0x0000
+#define LCD_COLOR_GREY     0xF7DE
+#define LCD_COLOR_BLUE     0x001F
+#define LCD_COLOR_BLUE2    0x051F
+#define LCD_COLOR_RED      0xF800
+#define LCD_COLOR_MAGENTA  0xF81F
+#define LCD_COLOR_GREEN    0x07E0
+#define LCD_COLOR_CYAN     0x7FFF
+#define LCD_COLOR_YELLOW   0xFFE0
 
 /* Needed delay(s)  */
 
-#define Tinit 150
-#define T120ms (MAIN_CLOCK_MHZ * 120000 / 4)
+#define Tinit   150
+#define T120ms  (MAIN_CLOCK_MHZ * 120000 / 4)
 
 /* Text mode globals */
 
@@ -63,7 +63,7 @@ in pixels */
 
 static int Line, Position, TextHeight, TextWidth, XOffset, YOffset;
 
-// moje - dzieki tym zmiennym bedziemy wiedziec ile poza LCD i w
+// moje - dzieki tym zmiennym bedziemy wiedziec ile poza LCD i w 
 // ktora strone jest wysuniety znacznik '+'
 static int overflow_bits_up, overflow_bits_down;
 static int overflow_bits_left, overflow_bits_right;
@@ -74,62 +74,48 @@ static int overflow_bits_left, overflow_bits_right;
 /* The following four functions are inlined and "if" statement is
 eliminated during optimization if the "bit" argument is a constant. */
 
-static void CS(uint32_t bit)
-{
-  if (bit)
-  {
+static void CS(uint32_t bit) {
+  if (bit) {
     GPIO_LCD_CS->BSRR = PIN_LCD_CS; /* Activate chip select line. */
   }
-  else
-  {
+  else {
     GPIO_LCD_CS->BSRR = PIN_LCD_CS << 16; /* Deactivate chip select line. */
   }
 }
 
-static void A0(uint32_t bit)
-{
-  if (bit)
-  {
+static void A0(uint32_t bit) {
+  if (bit) {
     GPIO_LCD_A0->BSRR = PIN_LCD_A0; /* Set data/command line to data. */
   }
-  else
-  {
+  else {
     GPIO_LCD_A0->BSRR = PIN_LCD_A0 << 16; /* Set data/command line to command. */
   }
 }
 
-static void SDA(uint32_t bit)
-{
-  if (bit)
-  {
+static void SDA(uint32_t bit) {
+  if (bit) {
     GPIO_LCD_SDA->BSRR = PIN_LCD_SDA; /* Set data bit one. */
   }
-  else
-  {
+  else {
     GPIO_LCD_SDA->BSRR = PIN_LCD_SDA << 16; /* Set data bit zero. */
   }
 }
 
-static void SCK(uint32_t bit)
-{
-  if (bit)
-  {
+static void SCK(uint32_t bit) {
+  if (bit) {
     GPIO_LCD_SCK->BSRR = PIN_LCD_SCK; /* Rising clock edge. */
   }
-  else
-  {
+  else {
     GPIO_LCD_SCK->BSRR = PIN_LCD_SCK << 16; /* Falling clock edge. */
   }
 }
 
-static void RCCconfigure(void)
-{
+static void RCCconfigure(void) {
   /* Enable GPIO clocks. */
   RCC->AHB1ENR |= RCC_LCD_CS | RCC_LCD_A0 | RCC_LCD_SDA | RCC_LCD_SCK;
 }
 
-static void GPIOconfigure(void)
-{
+static void GPIOconfigure(void) {
   CS(1); /* Set CS inactive. */
   GPIOoutConfigure(GPIO_LCD_CS, LCD_CS_PIN_N, GPIO_OType_PP,
                    GPIO_High_Speed, GPIO_PuPd_NOPULL);
@@ -147,18 +133,16 @@ static void GPIOconfigure(void)
                    GPIO_High_Speed, GPIO_PuPd_NOPULL);
 }
 
-static void LCDwriteSerial(uint32_t data, uint32_t length)
-{
+static void LCDwriteSerial(uint32_t data, uint32_t length) {
   uint32_t mask;
 
   mask = 1U << (length - 1);
-  while (length > 0)
-  {
-    // SDA - w data mamy ciag bitow 0-1, w mask idziemy od
-    // najstarszego bitu, czyli od lewej, maska ma same 0 oprocz
-    // jednej 1 ktora w danym obrocie petli sprawdzamy AND
-    // jesli data & mask da 1, to na miejscu i-tym w data jest 1
-    // wiec zapalamy bit na LCD robiac SDA
+  while (length > 0) {
+// SDA - w data mamy ciag bitow 0-1, w mask idziemy od
+// najstarszego bitu, czyli od lewej, maska ma same 0 oprocz
+// jednej 1 ktora w danym obrocie petli sprawdzamy AND
+// jesli data & mask da 1, to na miejscu i-tym w data jest 1
+// wiec zapalamy bit na LCD robiac SDA
     SDA(data & mask); /* Set bit. */
     --length;         /* Add some delay. */
     SCK(1);           /* Rising edge writes bit. */
@@ -167,8 +151,7 @@ static void LCDwriteSerial(uint32_t data, uint32_t length)
   }
 }
 
-static void LCDwriteCommand(uint32_t data)
-{
+static void LCDwriteCommand(uint32_t data) {
   // transmitujemy jaka komenda ma byc dostarczona do LCD
   // A0(0) - set line to command
   A0(0);
@@ -178,32 +161,27 @@ static void LCDwriteCommand(uint32_t data)
   A0(1);
 }
 
-static void LCDwriteData8(uint32_t data)
-{
+static void LCDwriteData8(uint32_t data) {
   /* A0(1); is already set */
   LCDwriteSerial(data, 8);
 }
 
-static void LCDwriteData16(uint32_t data)
-{
+static void LCDwriteData16(uint32_t data) {
   /* A0(1); is already set */
   LCDwriteSerial(data, 16);
 }
 
-static void LCDwriteData24(uint32_t data)
-{
+static void LCDwriteData24(uint32_t data) {
   /* A0(1); is already set */
   LCDwriteSerial(data, 24);
 }
 
-static void LCDwriteData32(uint32_t data)
-{
+static void LCDwriteData32(uint32_t data) {
   /* A0(1); is already set */
   LCDwriteSerial(data, 32);
 }
 
-void LCDsetRectangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
-{
+void LCDsetRectangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
   // Ta komenda chyba mowi po prostu ze ustalamy wlasnie lewy gorny
   // rog, a ta druga ze prawy dolny
   LCDwriteCommand(0x2A);
@@ -217,8 +195,7 @@ void LCDsetRectangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
   LCDwriteCommand(0x2C);
 }
 
-static void LCDcontrollerConfigure(void)
-{
+static void LCDcontrollerConfigure(void) {
   /* Activate chip select line */
   CS(0);
 
@@ -285,167 +262,136 @@ static void LCDcontrollerConfigure(void)
   CS(1);
 }
 
-static void LCDsetFont(const font_t *font)
-{
+static void LCDsetFont(const font_t *font) {
   CurrentFont = font;
   TextHeight = LCD_PIXEL_HEIGHT / CurrentFont->height;
-  TextWidth = LCD_PIXEL_WIDTH / CurrentFont->width;
-  XOffset = (LCD_PIXEL_WIDTH - TextWidth * CurrentFont->width) / 2;
+  TextWidth  = LCD_PIXEL_WIDTH  / CurrentFont->width;
+  XOffset = (LCD_PIXEL_WIDTH  - TextWidth  * CurrentFont->width)  / 2;
   YOffset = (LCD_PIXEL_HEIGHT - TextHeight * CurrentFont->height) / 2;
 }
 
-static void LCDsetColors(uint16_t text, uint16_t back)
-{
+static void LCDsetColors(uint16_t text, uint16_t back) {
   TextColor = text;
   BackColor = back;
 }
 
 typedef struct RectCoords
 {
-  char pos;
   uint16_t up_l_x;
   uint16_t up_l_y;
   uint16_t down_r_x;
   uint16_t down_r_y;
+  uint16_t width;
 } RectCoords;
 
-void init_RectangleCoords(RectCoords *rect)
+void init_4rect_tab(RectCoords *rect_tab)
 {
-  // X oznacza ze brak tego prostokata
-  rect->pos = 'X';
-  rect->up_l_x = 0;
-  rect->up_l_y = 0;
-  rect->down_r_x = 0;
-  rect->down_r_y = 0;
-}
+  // zeby zrozumiec obliczenia najlepiej sobie narysowac jeden z przypadkow na
+  // kartce i zobaczyc jakie sa wspolrzedne prostokatow
 
-void set_UD_rect_coords(RectCoords *main_rect, RectCoords *overflow_rect_y)
-{
-  // Teraz ustalamy prostokat ktory zostaje po czesciowym przejsciu
-  // poza LCD w pionie
-  // jednoczesnie tylko jedno z tych zdarzen moze zajsc
-  if (overflow_bits_up != 0)
+  // prostokat 0 jest zawsze w prawym dolnym rogu
+  rect_tab[0].up_l_y = overflow_bits_up ? LCD_PIXEL_HEIGHT - overflow_bits_up : Line;
+  rect_tab[0].up_l_x = overflow_bits_left ? LCD_PIXEL_WIDTH - overflow_bits_left : Position;
+  rect_tab[0].down_r_x = LCD_PIXEL_WIDTH - 1;
+  rect_tab[0].down_r_y = LCD_PIXEL_HEIGHT - 1;
+
+  // prostokat 1 jest zawsze w lewym dolnym rogu
+  // font_width - 1 - o_b_left bo np. jak mamy ob_left = 15 i font_w = 16 to mamy dostac 
+  // jedna kolumne czyli chcemy zeby wyszlo po dzialaniach 0
+  rect_tab[1].up_l_y = overflow_bits_up ? LCD_PIXEL_HEIGHT - overflow_bits_up : Line;
+  rect_tab[1].up_l_x = 0;
+  rect_tab[1].down_r_x = overflow_bits_left ? CurrentFont->width - 1 - overflow_bits_left : overflow_bits_right - 1;
+  rect_tab[1].down_r_y = LCD_PIXEL_HEIGHT - 1;
+
+  // prostokat 2 jest zawsze w prawym gornym rogu
+  rect_tab[2].up_l_y = 0;
+  rect_tab[2].up_l_x = overflow_bits_left ? LCD_PIXEL_WIDTH - overflow_bits_left : Position;
+  rect_tab[2].down_r_x = LCD_PIXEL_WIDTH - 1;
+  rect_tab[2].down_r_y = overflow_bits_up ? CurrentFont->height - 1 - overflow_bits_up : overflow_bits_down - 1;
+
+  // prostokat 4 jest zawsze w lewym gornym rogu
+  rect_tab[3].up_l_y = 0;
+  rect_tab[3].up_l_x = 0;
+  rect_tab[3].down_r_x = overflow_bits_left ? CurrentFont->width - 1 - overflow_bits_left : overflow_bits_right - 1;
+  rect_tab[3].down_r_y = overflow_bits_up ? CurrentFont->height - 1 - overflow_bits_up : overflow_bits_down - 1;
+
+  // width przyda sie do sledzenia kiedy przelaczyc na kolejny segment
+  for (int i = 0; i < 4; i++)
   {
-    main_rect->up_l_y = 0;
-    main_rect->down_r_y = TextHeight - overflow_bits_up;
-
-    overflow_rect_y->pos = 'U';
-    overflow_rect_y->up_l_y = LCD_PIXEL_HEIGHT - overflow_bits_up;
-    overflow_rect_y->down_r_y = LCD_PIXEL_HEIGHT - 1;  
-  }
-  else if (overflow_bits_down != 0)
-  {
-    main_rect->up_l_y = Line;
-    main_rect->down_r_y = LCD_PIXEL_HEIGHT - 1;
-
-    overflow_rect_y->pos = 'D';
-    overflow_rect_y->up_l_y = 0;
-    overflow_rect_y->down_r_y = overflow_bits_down - 1;  
-  }
-  // to mozemy ustawic tutaj bo nawet jak jest pos X to najwyzej tego nie 
-  // uzyjemy
-    overflow_rect_y->up_l_x = main_rect->up_l_x;
-    overflow_rect_y->down_r_x = main_rect->down_r_x;
-}
-
-void set_LR_rect_coords(
-  RectCoords *main_rect, 
-  RectCoords *overflow_rect_y,
-  RectCoords *overflow_rect_x)
-{
-
-  if (overflow_bits_left != 0)
-  {
-    main_rect->up_l_x = 0;
-    main_rect->down_r_x = TextWidth - overflow_bits_left;
-
-    overflow_rect_x->pos = 'L';
-    overflow_rect_x->up_l_x = LCD_PIXEL_WIDTH - overflow_bits_left;
-    overflow_rect_x->down_r_x = LCD_PIXEL_WIDTH - 1;
-    overflow_rect_x->up_l_y = main_rect->up_l_y;
-    overflow_rect_x->down_r_y = main_rect->down_r_y;
-    // if (overflow_rect_y->pos == 'X')
-    // {
-    //   overflow_rect_x->up_l_x = LCD_PIXEL_WIDTH - overflow_bits_left;
-    //   overflow_rect_x->down_r_x = LCD_PIXEL_WIDTH - 1;
-    //   overflow_rect_x->up_l_y = main_rect->up_l_y;
-    //   overflow_rect_x->down_r_y = main_rect->down_r_y;
-    // }
-    // else
-    // {
-    //   overflow_rect_x->up_l_x = LCD_PIXEL_WIDTH - overflow_bits_left;
-    //   overflow_rect_x->down_r_x = LCD_PIXEL_WIDTH - 1;
-    //   overflow_rect_x->up_l_y = overflow_rect_y.up_l_y;
-    //   overflow_rect_x->down_r_y = overflow_rect_y.down_r_y;
-    // }
-  }
-  else if (overflow_bits_right != 0)
-  {
-    main_rect->up_l_x = Position;
-    main_rect->down_r_x = LCD_PIXEL_WIDTH - 1;
-
-    overflow_rect_x->pos = 'R';
-    overflow_rect_x->up_l_x = 0;
-    overflow_rect_x->down_r_x = overflow_bits_right - 1;
-    overflow_rect_x->up_l_y = main_rect.up_l_y;
-    overflow_rect_x->down_r_y = main_rect.down_r_y;
-    // if (overflow_rect_y->pos == 'X')
-    // {
-    //   overflow_rect_x->up_l_x = 0;
-    //   overflow_rect_x->down_r_x = overflow_bits_right - 1;
-    //   overflow_rect_x->up_l_y = main_rect.up_l_y;
-    //   overflow_rect_x->down_r_y = main_rect.down_r_y;
-    // }
+	rect_tab[i].width = rect_tab[i].down_r_x - rect_tab[i].up_l_x + 1;
   }
 }
 
-void handle_drawing_when_overflow(unsigned c)
+void init_2rect_tab(RectCoords *rect_tab)
+{
+  if (overflow_bits_up || overflow_bits_down)
+  {
+  // W tym przypadku mamy tylko dwa prostokaty, teraz rozwazamy gdy idziemy w gore/dol
+  // Prostokat 1 - zawsze na dole wyswietlacza
+  rect_tab[0].up_l_y = overflow_bits_up ? LCD_PIXEL_HEIGHT - overflow_bits_up : Line;
+  rect_tab[0].up_l_x = Position;
+  rect_tab[0].down_r_x = Position + CurrentFont->width - 1;
+  rect_tab[0].down_r_y = LCD_PIXEL_HEIGHT - 1;
+
+  // Prostokat 2 - zawsze na gorze wyswietlacza
+  rect_tab[1].up_l_y = 0;
+  rect_tab[1].up_l_x = Position;
+  rect_tab[1].down_r_x = Position + CurrentFont->width - 1;
+  rect_tab[1].down_r_y = overflow_bits_up ? CurrentFont->height - 1 - overflow_bits_up : overflow_bits_down - 1;
+  }
+  else
+  {
+   // Teraz rozwazamy prawo/lewo
+   // Prostoakt 1 - zawsze po prawej stronie wyswietlacza
+  rect_tab[0].up_l_y = Line;
+  rect_tab[0].up_l_x = overflow_bits_left ? LCD_PIXEL_HEIGHT - overflow_bits_left : Position;
+  rect_tab[0].down_r_x = LCD_PIXEL_WIDTH - 1;
+  rect_tab[0].down_r_y = Line + CurrentFont->height - 1;
+
+  // Prostokat 2 - zawsze po lewej stronie wyswietlacza
+  rect_tab[1].up_l_y = Line;
+  rect_tab[1].up_l_x = 0;
+  rect_tab[1].down_r_x = overflow_bits_left ? CurrentFont->width - 1 - overflow_bits_left : overflow_bits_right - 1;
+  rect_tab[1].down_r_y = Line + CurrentFont->height - 1;
+  }
+
+  // width przyda sie do sledzenia kiedy przelaczyc na kolejny segment
+  for (int i = 0; i < 2; i++)
+  {
+	rect_tab[i].width = rect_tab[i].down_r_x - rect_tab[i].up_l_x + 1;
+  }
+}
+
+void draw_UD_overflow(unsigned c, RectCoords *rect_tab)
 {
     uint16_t const *p;
-    // uint16_t up_l_x, up_l_y, down_r_x, down_r_y, w;
     uint16_t w;
     int i, j;
-    RectCoords main_rect, overflow_rect_y, overflow_rect_x;
 
-    init_RectangleCoords(&main_rect);
-    init_RectangleCoords(&overflow_rect_y);
-    init_RectangleCoords(&overflow_rect_x);
-
-    main_rect.pos = 'M';
-    main_rect.up_l_x = Position;
-    main_rect.up_l_y = Line;
-    main_rect.down_r_x = main_rect.up_l_x + CurrentFont->width - 1;
-    main_rect.down_r_y = main_rect.up_l_y + CurrentFont->height - 1;
-
-    set_UD_rect_coords(&main_rect, &overflow_rect_y);
-    set_LR_rect_coords(&main_rect, &overflow_rect_y, &overflow_rect_x);
-
-
-  // Nie ma zadnego overflow czyli robimy zwykle rysowanie
-  // LCDsetRectangle(x, y, x + CurrentFont->width - 1,
-  //                 y + CurrentFont->height - 1);
+    init_2rect_tab(rect_tab);
 
     p = &CurrentFont->table[(c - FIRST_CHAR) * CurrentFont->height];
-
-    if (overflow_rect_y.pos == 'U')
-    {
-        LCDsetRectangle(
-            overflow_rect_y.up_l_x, 
-            overflow_rect_y.up_l_y, 
-            overflow_rect_y.down_r_x, 
-            overflow_rect_y.down_r_y);
-    }
+    // overflow up/down to najlatwiejszy przypadek i po prostu najpierw rysujemy
+    // gorna polowe cala i potem cala dolna
+    LCDsetRectangle(
+	rect_tab[0].up_l_x, 
+	rect_tab[0].up_l_y, 
+	rect_tab[0].down_r_x, 
+	rect_tab[0].down_r_y);
 
     for (i = 0; i < CurrentFont->height; ++i)
     {
-        if (i == overflow_bits_up)
+	// sprawdzamy czy doszlismy do ostatniego rzedu pierwszej polowy i jesli tak
+	// to zmieniamy polowe do rysowania na nastepna
+        if (i == rect_tab[0].down_r_y - rect_tab[0].up_l_y + 1)
         {
             LCDsetRectangle(
-                main_rect.up_l_x, 
-                main_rect.up_l_y, 
-                main_rect.down_r_x, 
-                main_rect.down_r_y);
+                rect_tab[1].up_l_x, 
+                rect_tab[1].up_l_y, 
+                rect_tab[1].down_r_x, 
+                rect_tab[1].down_r_y);
         }
+
         for (j = 0, w = p[i]; j < CurrentFont->width; ++j, w >>= 1)
         {
         LCDwriteData16(w & 1 ? TextColor : BackColor);
@@ -453,65 +399,155 @@ void handle_drawing_when_overflow(unsigned c)
     }
 }
 
-static void LCDdrawChar(unsigned c)
+void draw_other_overflows(unsigned c, RectCoords *rect_tab, int nbr_of_rects)
 {
-  uint16_t const *p;
-  uint16_t x, y, w;
-  int i, j;
+
+    uint16_t const *p;
+    uint16_t w;
+    int i, j;
+
+    if (nbr_of_rects == 2)
+    {
+	init_2rect_tab(rect_tab);
+    }
+    else
+    {
+	init_4rect_tab(rect_tab);
+    }
+
+    p = &CurrentFont->table[(c - FIRST_CHAR) * CurrentFont->height];
+
+    int curr_rect = 0;
+    int first_rect = 0;
+    uint16_t bytes_written = 0; 
+    uint16_t row_shift = 0;
+
+    for (i = 0; i < CurrentFont->height; ++i)
+    {
+	// Piszemy po jednym wierszu, wiec teraz mamy juz wiersz napisany 
+	// zatem chcemy rysowac w prostokacie nizszym o jeden wiersz
+	// Poza pierwszym obrotem petli gdy row_shift = 0
+	for (int k = 0; k < 2; k++)
+	{
+		rect_tab[curr_rect + k].up_l_y += row_shift;
+	}
+	// Ustawiamy pierwszy prostokat
+	LCDsetRectangle(
+	  rect_tab[curr_rect].up_l_x, 
+	  rect_tab[curr_rect].up_l_y, 
+	  rect_tab[curr_rect].down_r_x, 
+	  rect_tab[curr_rect].down_r_y);
+
+        for (j = 0, w = p[i]; j < CurrentFont->width; ++j, w >>= 1)
+        {
+		// gdy napiszemy tyle bajtow jaka jest szerokosc pierwszego prostokata
+		// to chcemy zmienic na nastepny prostokat
+		if (bytes_written == rect_tab[curr_rect].width)
+		{
+			bytes_written = 0;
+			curr_rect++;
+
+		    LCDsetRectangle(
+			rect_tab[curr_rect].up_l_x, 
+			rect_tab[curr_rect].up_l_y, 
+			rect_tab[curr_rect].down_r_x, 
+			rect_tab[curr_rect].down_r_y);
+		}
+		LCDwriteData16(w & 1 ? TextColor : BackColor);
+		bytes_written++;
+        }
+	bytes_written = 0;
+	row_shift = 1;
+	// jesli napisalismy juz ostatni wiersz prostokatow to przechodzimy 
+	// do nastepnej grupy dwoch prostokatow, jesli jest dostepna a w.p.p. konczy sie petla
+	if (rect_tab[curr_rect].up_l_y == rect_tab[curr_rect].down_r_y)
+	{
+		first_rect = 2;
+		row_shift = 0;
+	}
+	curr_rect = first_rect;
+    }
+}
+
+void handle_drawing_when_overflow(unsigned c)
+{
+    RectCoords rect_tab[4];
+
+    // w rect_tab mamy po kolei ustawione prostokaty ktore 
+    // bedziemy rysowac wiersz po wierszu, najpierw 0 i 1, 
+    // i jak je skonczymy to dopiero 2 i 3 (jesli 2 i 3 istnieja)
+    
+    if ((overflow_bits_up || overflow_bits_down) && 
+	!overflow_bits_left && 
+	!overflow_bits_right)
+    {
+	draw_UD_overflow(c, rect_tab);
+    }
+    else
+    {
+	    if ((overflow_bits_left || overflow_bits_right) && 
+			    !overflow_bits_up &&
+			    !overflow_bits_down)  
+	    {
+		draw_other_overflows(c, rect_tab, 2);
+	    }
+	    else
+	    {
+		draw_other_overflows(c, rect_tab, 4);
+	    }
+    }
+
+}
+
+static void LCDdrawChar(unsigned c) {
 
   // CS(0) - deactivate chip select line
   CS(0);
 
   // setRectangle - ustawia prostokat w ktorym bedziemy pisac
-  // dzieki czemu nasze n * 16bitowe obrazki
+  // dzieki czemu nasze n * 16bitowe obrazki 
   // beda sie dobrze zawijaly, bo nie piszemy po calym LCD tylko
   // po tym wydzielonym malym prostokacie
-  //
-  // Offset tez raczej niepotrzebny bo on byl po to zeby sie
-  // calkowita liczba prostokatow zmiescila w jednej linii
-  //
-  // y = YOffset + CurrentFont->height * Line;
-  // x = XOffset + CurrentFont->width  * Position;
 
-  if (overflow_bits_up == 0 &&
-      overflow_bits_down == 0 &&
-      overflow_bits_left == 0 &&
-      overflow_bits_right == 0)
-  {
-    y = Line;
-    x = Position;
-    // Nie ma zadnego overflow czyli robimy zwykle rysowanie
-    LCDsetRectangle(x, y, x + CurrentFont->width - 1,
-                    y + CurrentFont->height - 1);
+  if (!overflow_bits_up &&
+      !overflow_bits_down &&
+      !overflow_bits_left && 
+      !overflow_bits_right)
+ {
+  uint16_t const *p;
+  uint16_t x, y, w;
+  int      i, j;
 
-    p = &CurrentFont->table[(c - FIRST_CHAR) * CurrentFont->height];
+  y = Line;
+  x = Position;
+  // Nie ma zadnego overflow czyli robimy zwykle rysowanie
+  LCDsetRectangle(x, y, x + CurrentFont->width - 1, 
+		  y + CurrentFont->height - 1);
 
-    for (i = 0; i < CurrentFont->height; ++i)
-    {
-      for (j = 0, w = p[i]; j < CurrentFont->width; ++j, w >>= 1)
-      {
-        LCDwriteData16(w & 1 ? TextColor : BackColor);
-      }
+  p = &CurrentFont->table[(c - FIRST_CHAR) * CurrentFont->height];
+
+
+  for (i = 0; i < CurrentFont->height; ++i) {
+    for (j = 0, w = p[i]; j < CurrentFont->width; ++j, w >>= 1) {
+      // to co piszemy uzywajac LCDwriteData16 to piszemy 16bitow i gdy
+      // skonczy sie miejsce na LCD rectangle to automatyczni on 
+      // przechodzi do nowej linii
+      LCDwriteData16(w & 1 ? TextColor : BackColor);
     }
   }
-  else
-  {
-    handle_drawing_when_overflow(c);
-  }
-  // to co piszemy uzywajac LCDwriteData16 to piszemy 16bitow i gdy
-  // skonczy sie miejsce na LCD rectangle to automatyczni on
-  // przechodzi do nowej linii
-  // --------------------------------------------------------------
-  // UWAGA - zeby zaprogramowac warunki brzegowe, czyli zeby srodek
-  // + mogl dojsc do brzegu i zeby dalsza czesc + pojawila sie z
-  // drugiej strony, trzeba bedzie zmienic funkcje piszaca
+ }
+ else
+ {
+	// Mamy overflow gdzies wiec musimy obsluzyc specjalne wyswietlanie
+	handle_drawing_when_overflow(c);
+ }
+
   CS(1);
 }
 
 /** Public interface implementation **/
 
-void LCDconfigure()
-{
+void LCDconfigure() {
   /* See Errata, 2.1.6 Delay after an RCC peripheral clock enabling */
   RCCconfigure();
   /* Initialize global variables. */
@@ -522,24 +558,21 @@ void LCDconfigure()
   LCDcontrollerConfigure();
   LCDclear();
 
-  // Moja inicjalizacja zmiennych sledzacych polozenie znacznika
-  // gdy wyjdzie on poza ekran
+// Moja inicjalizacja zmiennych sledzacych polozenie znacznika 
+// gdy wyjdzie on poza ekran
   overflow_bits_up = 0;
   overflow_bits_down = 0;
-  overflow_bits_left = 0;
+  overflow_bits_left = 0; 
   overflow_bits_right = 0;
 }
 
-void LCDclear()
-{
+void LCDclear() {
   int i, j;
 
   CS(0);
   LCDsetRectangle(0, 0, LCD_PIXEL_WIDTH - 1, LCD_PIXEL_HEIGHT - 1);
-  for (i = 0; i < LCD_PIXEL_WIDTH; ++i)
-  {
-    for (j = 0; j < LCD_PIXEL_HEIGHT; ++j)
-    {
+  for (i = 0; i < LCD_PIXEL_WIDTH; ++i) {
+    for (j = 0; j < LCD_PIXEL_HEIGHT; ++j) {
       LCDwriteData16(BackColor);
     }
   }
@@ -548,114 +581,100 @@ void LCDclear()
   LCDgoto(0, 0);
 }
 
+
 void calc_overflow_bits(int textLine, int charPos)
 {
-  if (textLine >= LCD_PIXEL_HEIGHT)
-  {
-    // zeszlismy w dol poza LCD, maksymalnie TectHeight - 1
-    // bitow, wiec obliczamy ile dokladnie bitow w dol jestesmy
-    // gdy textLine = LCD_PIXEL_HEIGHT to znaczy ze jestesmy
-    // dokladnie JEDEN bit w dol poza LCD
-    overflow_bits_down = textLine - (LCD_PIXEL_HEIGHT - 1);
-  }
-  else if (textLine < 0)
-  {
-    // jak idziemy w gore to mamy ujemne wartosci od -1 az do
-    // -(TextHeight - 1) wiec zeby dostac liczbe bitow wystarczy
-    // przemnozyc to razy -1
-    overflow_bits_up = -textLine;
-  }
+ if (textLine > LCD_PIXEL_HEIGHT - CurrentFont->height)
+ {
+  // zeszlismy w dol poza LCD, maksymalnie FontHeight - 1
+  // bitow, wiec obliczamy ile dokladnie bitow w dol jestesmy
+  // gdy textLine = LCD_PIXEL_HEIGHT - 1 to znaczy ze jestesmy 
+  // dokladnie FontHeight - 1 bitow w dol poza LCD
+  overflow_bits_down = textLine - 
+	  (LCD_PIXEL_HEIGHT - CurrentFont->height);
+ }
+ else if (textLine < 0)
+ {
+  // jak idziemy w gore to mamy ujemne wartosci od -1 az do
+  // -(TextHeight - 1) wiec zeby dostac liczbe bitow wystarczy
+  // przemnozyc to razy -1
+  overflow_bits_up = -textLine;
+ }
 
-  if (charPos >= LCD_PIXEL_WIDTH)
-  {
-    // poszlismy w prawo poza LCD, maksymalnie TextWidth - 1
-    overflow_bits_right = charPos - (LCD_PIXEL_WIDTH - 1);
-  }
-  else if (charPos < 0)
-  {
-    // jak idziemy w lewo to mamy ujemne wartosci od -1 az do
-    // -(TextWidth - 1)
-    overflow_bits_left = -charPos;
-  }
+ if (charPos > LCD_PIXEL_WIDTH - CurrentFont->width)
+ {
+  // poszlismy w prawo poza LCD, maksymalnie FontWidth - 1
+  overflow_bits_right = charPos - 
+	  (LCD_PIXEL_WIDTH - CurrentFont->width);
+ }
+ else if (charPos < 0)
+ {
+	// jak idziemy w lewo to mamy ujemne wartosci od -1 az do
+	// -TextWidth + 1 
+	overflow_bits_left = -charPos;
+ }
 }
 
-void LCDgoto(int textLine, int charPos)
+void LCDgoto(int textLine, int charPos) {
+
+if (textLine >= 0 && 
+	textLine <= LCD_PIXEL_HEIGHT - CurrentFont->height &&
+	charPos >= 0 && 
+	charPos <= LCD_PIXEL_WIDTH - CurrentFont->height)
 {
-  // dodane przeze mnie - okresowe warunki brzegowe z obsluga wyjscia
-  // za LCD czesciowo
-  if (textLine >= 0 && textLine < LCD_PIXEL_HEIGHT &&
-      charPos >= 0 && charPos < LCD_PIXEL_WIDTH)
-  {
-
-    Line = textLine % LCD_PIXEL_HEIGHT;
-    Position = charPos % LCD_PIXEL_WIDTH;
-
-    // jestesmy wewnatrz LCD wiec zerujemy bity overflow
-    overflow_bits_up = 0;
-    overflow_bits_down = 0;
-    overflow_bits_left = 0;
-    overflow_bits_right = 0;
-  }
-  else
-  {
-    // wyszlismy w jakims stopniu poza LCD wiec ustawiamy
-    // bity overflow
-    calc_overflow_bits(textLine, charPos);
-  }
-  // STARE
-  // while (textLine < 0)
-  //	textLine += LCD_PIXEL_HEIGHT; // bylo TextHeight
-
-  // while (charPos < 0)
-  //	charPos += LCD_PIXEL_WIDTH;
-  //  koniec dodanego przeze mnie
-
-  // aktualizujemy Line i Position, ale w obsludze overflow bitow
-  // raczej nie bedziemy juz uzywac ponizszych wartosci
-  Line = textLine;    //% LCD_PIXEL_HEIGHT;
-  Position = charPos; //% LCD_PIXEL_WIDTH;
+	// jestesmy wewnatrz LCD wiec zerujemy bity overflow
+	overflow_bits_up = 0;
+	overflow_bits_down = 0;
+	overflow_bits_left = 0; 
+	overflow_bits_right = 0;
+}
+else 
+{
+	// wyszlismy w jakims stopniu poza LCD wiec ustawiamy
+	// bity overflow
+	calc_overflow_bits(textLine, charPos);
 }
 
-void LCDputchar(char c)
-{
+Line = textLine; 
+Position = charPos; 
+}
+
+void LCDputchar(char c) {
   if (c == '\n')
     LCDgoto(Line + 1, 0); /* line feed */
   else if (c == '\r')
     LCDgoto(Line, 0); /* carriage return */
   else if (c == '\t')
     LCDgoto(Line, (Position + 8) & ~7); /* tabulator */
-  else
-  {
-    // ten defaultowy if dziala przy zalozeniu ze znaki sa w swoich
-    // kwadratach i te kwadraty nie nachodza na siebie, wiec jest
-    // ich tylko kilka, wiec jak bysmy pisali kolejne znaki to one
-    // bylyby ladnie ulozone obok siebie na LCD,
-    // ALE u nas mamy tylko jeden znak ktory przesuwamy wiec chcemy
+  else {
+    // ten defaultowy if dziala przy zalozeniu ze znaki sa w swoich 
+    // kwadratach i te kwadraty nie nachodza na siebie, wiec jest 
+    // ich tylko kilka, wiec jak bysmy pisali kolejne znaki to one 
+    // bylyby ladnie ulozone obok siebie na LCD,  
+    // ALE u nas mamy tylko jeden znak ktory przesuwamy wiec chcemy 
     // moc go przesuwac o jeden piksel a nie o caly kwadrat w prawo
-    // if (c >= FIRST_CHAR && c <= LAST_CHAR &&
-    //   Line >= 0 && Line < TextHeight &&
-    //  Position >= 0 && Position < TextWidth) {
-    // LCDdrawChar(c);
+    //if (c >= FIRST_CHAR && c <= LAST_CHAR &&
+     //   Line >= 0 && Line < TextHeight &&
+      //  Position >= 0 && Position < TextWidth) {
+      //LCDdrawChar(c);
     //}
+    
+    // Nasz znak jest w prostokacie font_width x font_height
+    // Wiec maksymalnie mozemy wyjsc poza LCD o np. -font_width + 1
     if (c >= FIRST_CHAR && c <= LAST_CHAR &&
-        Line > -TextHeight && Line < LCD_PIXEL_HEIGHT + TextHeight &&
-        Position > -TextWidth && Position < LCD_PIXEL_WIDTH + TextWidth)
+    Line > -CurrentFont->height && Line < LCD_PIXEL_HEIGHT &&
+    Position > -CurrentFont->width && Position < LCD_PIXEL_WIDTH)
     {
-      LCDdrawChar(c);
+	    LCDdrawChar(c);
     }
-    // nie potrzebujemy isc do nastepnej kolumny bo i tak w glownej
-    // petli sami ustawiamy gdzie bedzie nastepna pozycja
-    // LCDgoto(Line, Position + 1);
   }
 }
 
-void LCDputcharWrap(char c)
-{
+void LCDputcharWrap(char c) {
   /* Check if, there is room for the next character,
   but does not wrap on white character. */
   if (Position >= TextWidth &&
-      c != '\t' && c != '\r' && c != '\n' && c != ' ')
-  {
+      c != '\t' && c != '\r' &&  c != '\n' && c != ' ') {
     LCDputchar('\n');
   }
   LCDputchar(c);
@@ -663,6 +682,6 @@ void LCDputcharWrap(char c)
 
 void LCD_get_text_width_height(int *w, int *h)
 {
-  *w = TextWidth;
-  *h = TextHeight;
+	*w = CurrentFont->width;
+	*h = CurrentFont->height;
 }
