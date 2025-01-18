@@ -688,10 +688,9 @@ int main()
     int pos = 0;
     int line = 0;
 
+    // przesuwanie znacznika '+' po ekranie jest w obsludze przerwan joysticka
     LCDclear();
     LCDputchar('+');
-    // Tu bedziemy przesuwac znaczek plusa na wyswietlaczu LCD
-    char prev_movement = 'N';
     while (1)
     {
         if (!q_is_empty(&init_plus_pos_q))
@@ -702,38 +701,6 @@ int main()
             try_to_start_DMA_transmission();
             if (plus_pos_str[0] == 'F')
                 break;
-            // q_add_str(plus_pos_str, &dma_queue);
-
-            // try_to_start_DMA_transmission();
-
-            // if (movement_direction == 'F')
-            //     break;
-            // else if (prev_movement == movement_direction)
-            // {
-            //     prev_movement = 'N';
-            //     continue;
-            // }
-            // else if (movement_direction == 'L')
-            // {
-            //     pos--;
-            // }
-            // else if (movement_direction == 'R')
-            // {
-            //     pos++;
-            // }
-            // else if (movement_direction == 'U')
-            // {
-            //     line--;
-            // }
-            // else if (movement_direction == 'D')
-            // {
-            //     line++;
-            // }
-
-            // prev_movement = movement_direction;
-            // LCDclear();
-            // LCDgoto(line, pos);
-            // LCDputchar('+');
         }
     }
 
