@@ -698,6 +698,8 @@ int main()
         {
             // char movement_direction;
             q_remove_str(plus_pos_str, &rmvd_str_len, &init_plus_pos_q);
+            q_add_str(plus_pos_str, &dma_queue);
+            try_to_start_DMA_transmission();
             if (plus_pos_str[0] == 'F')
                 break;
             // q_add_str(plus_pos_str, &dma_queue);
