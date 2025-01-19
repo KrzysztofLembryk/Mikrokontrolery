@@ -730,7 +730,7 @@ int main()
                 curr_y_val = (int8_t)y;
                 what_to_read = X_REG_TYPE;
                 
-                calc_new_lcd_pos(curr_x_val, curr_y_val);
+                calc_new_lcd_pos(curr_x_val, curr_y_val, &dma_queue);
             }
         }
     }
