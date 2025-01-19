@@ -76,7 +76,7 @@
 
 QInfo dma_queue;
 QInfo op_queue;
-QInfo init_plus_pos_q;
+QInfo acc_queue;
 // BIAŁE -> ŻÓŁTE, czyli w MT INIT_BTF_FLAG_NOT_SET
 
 // ------------------------------------------------------------------------- 
@@ -245,7 +245,7 @@ void EXTI15_10_IRQHandler(void)
     {
         EXTI->PR = EXTI_PR_PR10;
 
-        handle_jstick(check_JstickCenterPressed(), &init_plus_pos_q);
+        handle_jstick(check_JstickCenterPressed(), &dma_queue);
     }
 }
 
@@ -260,7 +260,7 @@ void EXTI3_IRQHandler(void)
     {
         EXTI->PR = EXTI_PR_PR3;
 
-        handle_jstick(check_JstickLeftPressed(), &init_plus_pos_q);
+        handle_jstick(check_JstickLeftPressed(), &dma_queue);
     }
 }
 
@@ -271,7 +271,7 @@ void EXTI4_IRQHandler(void)
     {
         EXTI->PR = EXTI_PR_PR4;
 
-        handle_jstick(check_JstickRightPressed(), &init_plus_pos_q);
+        handle_jstick(check_JstickRightPressed(), &dma_queue);
     }
 }
 
@@ -282,7 +282,7 @@ void EXTI9_5_IRQHandler(void)
     {
         EXTI->PR = EXTI_PR_PR5;
 
-        handle_jstick(check_JstickUpPressed(), &init_plus_pos_q);
+        handle_jstick(check_JstickUpPressed(), &dma_queue);
     }
 
     // Sprawdzamy czy JOYSTICK Down wywołał przerwanie
@@ -290,7 +290,7 @@ void EXTI9_5_IRQHandler(void)
     {
         EXTI->PR = EXTI_PR_PR6;
 
-        handle_jstick(check_JstickDownPressed(), &init_plus_pos_q);
+        handle_jstick(check_JstickDownPressed(), &dma_queue);
     }
 }
 
@@ -589,8 +589,8 @@ void I2C1_EV_IRQHandler()
     static uint32_t byte_type = INIT_POWER_EN_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
-    static bool is_MR = false;
-    static bool more_to_set = false;
+    //static bool is_MR = false;
+    //static bool more_to_set = false;
     static uint32_t timer = 0;
 
     // Odczytujemy RAZ SR1 bo odczyt może zmienić bity i dwa odczyty pod rząd
@@ -601,10 +601,8 @@ void I2C1_EV_IRQHandler()
 
     if (read_reg_type == X_REG_TYPE)
         read_reg_addr = OUT_X_REG;
-    else if (read_reg_type == Y_REG_TYPE)
+    else 
         read_reg_addr = OUT_Y_REG;
-    else  
-        read_reg_addr = OUT_Z_REG;
 
     // better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
     if (op_type == INIT_POWER_EN_OPERATION)
@@ -625,15 +623,16 @@ void I2C1_EV_IRQHandler()
                 if (timer % 121 == 0)
                 {
                     timer = 0;
-                    q_add_xyz(received_byte, read_reg_type, &dma_queue);
-                    try_to_start_DMA_transmission();
-                    if (read_reg_type == 2)
+                    q_add(received_byte, &acc_queue);
+                    // q_add_xyz(received_byte, read_reg_type, &dma_queue);
+                    // try_to_start_DMA_transmission();
+                    if (read_reg_type == Y_REG_TYPE)
                         timer++;
                 }
                 else 
                     timer++;
 
-                read_reg_type = (read_reg_type + 1) % 3;
+                read_reg_type = (read_reg_type + 1) % 2;
 
                 // inicjujemy kolejna transmisje
                 byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
@@ -653,7 +652,7 @@ void init_queues()
 {
     init_QInfo(&dma_queue, QUEUE_SIZE);
     init_QInfo(&op_queue, QUEUE_SIZE);
-    init_QInfo(&init_plus_pos_q, QUEUE_SIZE);
+    init_QInfo(&acc_queue, QUEUE_SIZE);
     // W op_queue trzymamy operacje ktore maja sie wykonac, najpierw 
     // inicjalizacja, ale potem musimy jeszcze zainicjalizowac repeated start
     // zeby moc odbierac dane, wiec jak skonczy sie inicjalizacja, to w 
@@ -681,10 +680,6 @@ int main()
     init_I2C1();
     init_queues();
 
-
-    char plus_pos_str[MAX_STR_LEN] = {0};
-    int rmvd_str_len = 0;
-
     int pos = 0;
     int line = 0;
 
@@ -693,13 +688,12 @@ int main()
     LCDputchar('+');
     while (1)
     {
-        if (!q_is_empty(&init_plus_pos_q))
+        if (!q_is_empty(&dma_queue))
         {
             // char movement_direction;
-            q_remove_str(plus_pos_str, &rmvd_str_len, &init_plus_pos_q);
-            q_add_str(plus_pos_str, &dma_queue);
+            char fire_pressed = q_front(&dma_queue);
             try_to_start_DMA_transmission();
-            if (plus_pos_str[0] == 'F')
+            if (fire_pressed == 'F')
                 break;
         }
     }
