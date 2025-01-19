@@ -687,11 +687,9 @@ int main()
     init_I2C1();
     init_queues();
 
-
+    // Petla ustawiania startowego znacznika poprzez uzywanie joysticka
     LCDclear();
     LCDputchar('+');
-
-    // Petla ustawiania startowego znacznika poprzez uzywanie joysticka
     while (1)
     {
         if (!q_is_empty(&dma_queue))
@@ -705,13 +703,8 @@ int main()
 
     init_I2C1_accelerometer_transmission();
 
-    // int pos_change = 0;
-    // int line_change = 0;
-
+    // Petla odbierania danych z akcelerometru i przesylania ich do LCD
     int what_to_read = X_REG_TYPE;
-    bool is_first = true;
-    int8_t first_x_val = 0;
-    int8_t first_y_val = 0;
     int8_t curr_x_val = 0;
     int8_t curr_y_val = 0;
 
@@ -719,44 +712,25 @@ int main()
     {
         if (!q_is_empty(&acc_queue))
         {
-            if (is_first)
+            if (what_to_read == X_REG_TYPE)
             {
-                if (what_to_read == X_REG_TYPE)
-                {
-                    q_remove((char*)(&first_x_val), &acc_queue);
-                    first_x_val = abs(first_x_val);
-                    what_to_read = Y_REG_TYPE;
-                }
-                else 
-                {
-                    q_remove((char*)(&first_y_val), &acc_queue);
-                    first_y_val = abs(first_y_val);
-                    what_to_read = X_REG_TYPE;
-                    is_first = false;
-                }
+                char x;
+
+                q_remove(&x, &acc_queue);
+
+                curr_x_val = (int8_t)x;
+                what_to_read = Y_REG_TYPE;
             }
             else 
             {
-                if (what_to_read == X_REG_TYPE)
-                {
-                    char x;
-                    q_remove(&x, &acc_queue);
-                    curr_x_val = (int8_t)x;
-                    what_to_read = Y_REG_TYPE;
-                }
-                else 
-                {
-                    char y;
-                    q_remove(&y, &acc_queue);
-                    curr_y_val = (int8_t)y;
-                    what_to_read = X_REG_TYPE;
+                char y;
 
-                    // curr_x_val = curr_x_val >= 0 ? curr_x_val - first_x_val : curr_x_val + first_x_val;
+                q_remove(&y, &acc_queue);
 
-                    // curr_y_val = curr_y_val >= 0 ? curr_y_val - first_y_val : curr_y_val + first_y_val;
-
-                    calc_new_lcd_pos(curr_x_val, curr_y_val);
-                }
+                curr_y_val = (int8_t)y;
+                what_to_read = X_REG_TYPE;
+                
+                calc_new_lcd_pos(curr_x_val, curr_y_val);
             }
         }
     }
