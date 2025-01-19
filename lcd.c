@@ -286,9 +286,6 @@ typedef struct RectCoords
 
 void init_4rect_tab(RectCoords *rect_tab)
 {
-  // zeby zrozumiec obliczenia najlepiej sobie narysowac jeden z przypadkow na
-  // kartce i zobaczyc jakie sa wspolrzedne prostokatow
-
   // prostokat 0 jest zawsze w prawym dolnym rogu
   rect_tab[0].up_l_y = overflow_bits_up ? LCD_PIXEL_HEIGHT - overflow_bits_up : Line;
   rect_tab[0].up_l_x = overflow_bits_left ? LCD_PIXEL_WIDTH - overflow_bits_left : Position;
@@ -344,7 +341,7 @@ void init_2rect_tab(RectCoords *rect_tab)
    // Teraz rozwazamy prawo/lewo
    // Prostoakt 1 - zawsze po prawej stronie wyswietlacza
   rect_tab[0].up_l_y = Line;
-  rect_tab[0].up_l_x = overflow_bits_left ? LCD_PIXEL_HEIGHT - overflow_bits_left : Position;
+  rect_tab[0].up_l_x = overflow_bits_left ? LCD_PIXEL_WIDTH - overflow_bits_left : Position;
   rect_tab[0].down_r_x = LCD_PIXEL_WIDTH - 1;
   rect_tab[0].down_r_y = Line + CurrentFont->height - 1;
 

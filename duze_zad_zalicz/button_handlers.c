@@ -7,22 +7,23 @@ void handle_LCD_position(uint16_t jstick_prsd, QInfo *q_info)
     switch (jstick_prsd)
     {
     case JSTICK_LEFT_PIN:
-        calc_new_lcd_pos(-1, 0);
+        calc_new_lcd_pos(-1, 0, q_info);
         break;
     case JSTICK_RIGHT_PIN:
-        calc_new_lcd_pos(1, 0);
+        calc_new_lcd_pos(1, 0, q_info);
         break;
     case JSTICK_UP_PIN:
-        calc_new_lcd_pos(0, -1);
+        calc_new_lcd_pos(0, -1, q_info);
         break;
     case JSTICK_DOWN_PIN:
-        calc_new_lcd_pos(0, 1);
+        calc_new_lcd_pos(0, 1, q_info);
         break;
     case JSTICK_CENTER_PIN:
         q_add_str(JSTICK_CENTER_PRSSD, q_info);
         break;
     }
 }
+
 // Funkcja najpierw sprawdza czy poprzedni przycisk byl wcisniety, jesli tak to
 // dodaje do kolejki komunikat o jego zwolnieniu, a nastepnie dodaje do kolejki
 // komunikat o wcisnieciu nowego przycisku i aktualizuje wartosc
