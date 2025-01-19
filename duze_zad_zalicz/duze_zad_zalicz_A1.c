@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <inttypes.h>
 #include <gpio.h>
 #include <delay.h>
@@ -6,6 +7,10 @@
 #include "diods.h"
 #include "init_funcs.h"
 #include "queue.h"
+#include "buttons.h"
+#include "button_handlers.h"
+#include "lcd.h"
+#include "lcd_handlers.h"
 
 // KOMENDA WGRYWJACA PROGRAM NA PLYTKE
 // /opt/arm/stm32/ocd/qfn4
@@ -14,6 +19,7 @@
 
 // na WSL2, minicom ok
 // ale sudo /opt/arm/stm32/ocd/qfn4
+#define ACCELEROMETER_READ_SPEED 1201
 
 #define LIS35DE_ADDR 0x1C
 #define CTRL_REG1 0x20
@@ -73,7 +79,13 @@
 
 QInfo dma_queue;
 QInfo op_queue;
+QInfo acc_queue;
 // BIAŁE -> ŻÓŁTE, czyli w MT INIT_BTF_FLAG_NOT_SET
+
+// ------------------------------------------------------------------------- 
+// ------------------------ DMA INTERRUPTS HANDLERS ------------------------
+// -------------------------------------------------------------------------
+
 void start_DMA_transmission()
 {
     static char send_buffer[3 * MAX_STR_LEN];
@@ -225,6 +237,70 @@ void power_diods(int ret_code)
     }
 }
 
+// -------------------------------------------------------------------------
+// --------------------- EXTERNAL INTERRUPTS HANDLERS ----------------------
+// -------------------------------------------------------------------------
+
+void EXTI15_10_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Center wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR10)
+    {
+        EXTI->PR = EXTI_PR_PR10;
+
+        handle_jstick(check_JstickCenterPressed(), &dma_queue);
+    }
+}
+
+void EXTI0_IRQHandler(void)
+{
+}
+
+void EXTI3_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Left wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR3)
+    {
+        EXTI->PR = EXTI_PR_PR3;
+
+        handle_jstick(check_JstickLeftPressed(), &dma_queue);
+    }
+}
+
+void EXTI4_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Right wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR4)
+    {
+        EXTI->PR = EXTI_PR_PR4;
+
+        handle_jstick(check_JstickRightPressed(), &dma_queue);
+    }
+}
+
+void EXTI9_5_IRQHandler(void)
+{
+    // Sprawdzamy czy JOYSTICK Up wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR5)
+    {
+        EXTI->PR = EXTI_PR_PR5;
+
+        handle_jstick(check_JstickUpPressed(), &dma_queue);
+    }
+
+    // Sprawdzamy czy JOYSTICK Down wywołał przerwanie
+    if (EXTI->PR & EXTI_PR_PR6)
+    {
+        EXTI->PR = EXTI_PR_PR6;
+
+        handle_jstick(check_JstickDownPressed(), &dma_queue);
+    }
+}
+
+
+// -------------------------------------------------------------------------
+// ------------------------ I2C INTERRUPT HANDLERS -------------------------
+// -------------------------------------------------------------------------
 
 // UWAGA - trzeba zakolejkowac jakie operacje mamy wykonywac, czyli jak robimy
 // init power_en i potem robimy pierwsze odczyty, to zapisujemy te informacje 
@@ -516,8 +592,8 @@ void I2C1_EV_IRQHandler()
     static uint32_t byte_type = INIT_POWER_EN_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
-    static bool is_MR = false;
-    static bool more_to_set = false;
+    //static bool is_MR = false;
+    //static bool more_to_set = false;
     static uint32_t timer = 0;
 
     // Odczytujemy RAZ SR1 bo odczyt może zmienić bity i dwa odczyty pod rząd
@@ -528,10 +604,8 @@ void I2C1_EV_IRQHandler()
 
     if (read_reg_type == X_REG_TYPE)
         read_reg_addr = OUT_X_REG;
-    else if (read_reg_type == Y_REG_TYPE)
+    else 
         read_reg_addr = OUT_Y_REG;
-    else  
-        read_reg_addr = OUT_Z_REG;
 
     // better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
     if (op_type == INIT_POWER_EN_OPERATION)
@@ -549,18 +623,23 @@ void I2C1_EV_IRQHandler()
             {
                 int8_t received_byte = I2C1->DR;
 
-                if (timer % 121 == 0)
+                if (timer % ACCELEROMETER_READ_SPEED == 0)
                 {
                     timer = 0;
-                    q_add_xyz(received_byte, read_reg_type, &dma_queue);
-                    try_to_start_DMA_transmission();
-                    if (read_reg_type == 2)
+                    if (q_check_if_enough_space(3, &acc_queue))
+                    {
+                        q_add(received_byte, &acc_queue);
+
+                        q_add_xyz(received_byte, read_reg_type, &dma_queue);
+                        try_to_start_DMA_transmission();
+                    }
+                    if (read_reg_type == Y_REG_TYPE)
                         timer++;
                 }
                 else 
                     timer++;
 
-                read_reg_type = (read_reg_type + 1) % 3;
+                read_reg_type = (read_reg_type + 1) % 2;
 
                 // inicjujemy kolejna transmisje
                 byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
@@ -580,6 +659,7 @@ void init_queues()
 {
     init_QInfo(&dma_queue, QUEUE_SIZE);
     init_QInfo(&op_queue, QUEUE_SIZE);
+    init_QInfo(&acc_queue, QUEUE_SIZE);
     // W op_queue trzymamy operacje ktore maja sie wykonac, najpierw 
     // inicjalizacja, ale potem musimy jeszcze zainicjalizowac repeated start
     // zeby moc odbierac dane, wiec jak skonczy sie inicjalizacja, to w 
@@ -597,16 +677,61 @@ void init_I2C1_accelerometer_transmission()
 int main()
 {
     init_rcc();
+    LCDconfigure();
     init_diods();
     init_usart2_TXD_RXD_lines();
     init_usart2_cr_registers();
     init_dma_cr_registers();
     init_dma_interrupts();
+    init_external_interrupts();
     init_I2C1();
     init_queues();
-    init_I2C1_accelerometer_transmission();
 
+    // Petla ustawiania startowego znacznika poprzez uzywanie joysticka
+    LCDclear();
+    LCDputchar('+');
     while (1)
     {
+        if (!q_is_empty(&dma_queue))
+        {
+            char fire_pressed = q_front(&dma_queue);
+            try_to_start_DMA_transmission();
+            if (fire_pressed == 'F')
+                break;
+        }
+    }
+
+    init_I2C1_accelerometer_transmission();
+
+    // Petla odbierania danych z akcelerometru i przesylania ich do LCD
+    int what_to_read = X_REG_TYPE;
+    int8_t curr_x_val = 0;
+    int8_t curr_y_val = 0;
+
+    while(1) 
+    {
+        if (!q_is_empty(&acc_queue))
+        {
+            if (what_to_read == X_REG_TYPE)
+            {
+                char x;
+
+                q_remove(&x, &acc_queue);
+
+                curr_x_val = (int8_t)x;
+                what_to_read = Y_REG_TYPE;
+            }
+            else 
+            {
+                char y;
+
+                q_remove(&y, &acc_queue);
+
+                curr_y_val = (int8_t)y;
+                what_to_read = X_REG_TYPE;
+                
+                calc_new_lcd_pos(curr_x_val, curr_y_val);
+            }
+        }
     }
 }

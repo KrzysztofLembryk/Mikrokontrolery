@@ -1,6 +1,7 @@
 #include "diods.h"
 #include "register_consts.h"
 #include "init_funcs.h"
+#include "buttons.h"
 #include <xcat.h>
 
 #define I2C_GPIO_N  B
@@ -80,6 +81,10 @@ void init_rcc()
     // wlaczamy zegar dla I2C1
     RCC->APB1ENR |= RCC_APB1ENR_I2C1EN |
                     RCC_APB1ENR_USART2EN;
+
+    // Wlaczanie przerwan dla przyciskow itp czyli 
+    // SYSCFG - System Configuration Controller
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 }
 
 void init_usart2_TXD_RXD_lines()
@@ -128,7 +133,6 @@ void init_usart2_cr_registers()
     // ustawiamy bit USART_Enable w rejestrze CR1
     USART2->CR1 |= USART_Enable;
 }
-
 
 void init_dma_cr_registers()
 {
@@ -265,4 +269,65 @@ void init_I2C1()
     I2C1->CR1 |= I2C_CR1_PE;
 
     // !! rejestry I2C1 sa 16bitowe
+}
+
+void init_external_interrupts()
+{
+    // GPIOinConfigure - poprzez podanie do niej flag EXTI_... on sama ustawia
+    // odpowiednie rejestry w SYSCFG takie jak:
+    // EXTICR[i] - podlacza odpowiednie piny do linii przerwan
+    // EXTI->IMR - wylacza/wlacza linie przerwan
+    // EXTI->EMR - wylacza/wlacza linie przerwan dla zdarzen zewnetrznych
+    // EXTI->RTSR - ustawia zbocze narastajace
+    // EXTI->FTSR - ustawia zbocze opadajace
+
+
+
+    
+    // -------JOYSTICK BUTTONS-------
+    GPIOinConfigure(JSTICK_BTN_GPIO, 
+                    JSTICK_LEFT_PIN, 
+                    GPIO_PuPd_UP,
+                    EXTI_Mode_Interrupt,
+                    EXTI_Trigger_Rising_Falling);
+    GPIOinConfigure(JSTICK_BTN_GPIO,
+                    JSTICK_RIGHT_PIN,
+                    GPIO_PuPd_UP,
+                    EXTI_Mode_Interrupt,
+                    EXTI_Trigger_Rising_Falling);
+    GPIOinConfigure(JSTICK_BTN_GPIO,
+                    JSTICK_UP_PIN,
+                    GPIO_PuPd_UP,
+                    EXTI_Mode_Interrupt,
+                    EXTI_Trigger_Rising_Falling);
+    GPIOinConfigure(JSTICK_BTN_GPIO,
+                    JSTICK_DOWN_PIN,
+                    GPIO_PuPd_UP,
+                    EXTI_Mode_Interrupt,
+                    EXTI_Trigger_Rising_Falling);
+    GPIOinConfigure(JSTICK_BTN_GPIO,
+                    JSTICK_CENTER_PIN,
+                    GPIO_PuPd_UP,
+                    EXTI_Mode_Interrupt,
+                    EXTI_Trigger_Rising_Falling);
+
+    // Wyczyszczenie znacznikow oczekujacych przerwan dla naszych linii
+    EXTI->PR = EXTI_PR_PR13 | EXTI_PR_PR0 | EXTI_PR_PR3 | EXTI_PR_PR4 | EXTI_PR_PR5 | EXTI_PR_PR6 | EXTI_PR_PR10;
+
+    // Ustawienie priorytetow przerwan - niepotrzebne, jest ok gdy maja te same priorytety
+    // NVIC_SetPriority(EXTI15_10_IRQn, 2);
+    // NVIC_SetPriority(EXTI0_IRQn, 3);
+    // NVIC_SetPriority(EXTI3_IRQn, 4);
+    // NVIC_SetPriority(EXTI4_IRQn, 4);
+    // NVIC_SetPriority(EXTI9_5_IRQn, 4);
+
+    // Wlaczenie przerwan dla linii:
+    // 13 - USER
+    // 0 - AT MODE 
+    // 3, 4, 5, 6, 10 - JOYSTICK 
+    // NVIC_EnableIRQ(EXTI0_IRQn);
+    NVIC_EnableIRQ(EXTI3_IRQn);
+    NVIC_EnableIRQ(EXTI4_IRQn);
+    NVIC_EnableIRQ(EXTI9_5_IRQn);
+    NVIC_EnableIRQ(EXTI15_10_IRQn);
 }

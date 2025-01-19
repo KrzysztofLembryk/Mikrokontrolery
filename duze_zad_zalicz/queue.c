@@ -159,9 +159,8 @@ void int8_to_string(int8_t value, char *str)
     }
 }
 
-void q_add_xyz(int8_t read_val, uint8_t reg_type, QInfo *q_info)
+void choose_first_two_elems(char *dec_str, uint8_t reg_type)
 {
-    static char dec_str[10];
     dec_str[1] = ':';
 
     if (reg_type == X_REG_TYPE)
@@ -180,8 +179,63 @@ void q_add_xyz(int8_t read_val, uint8_t reg_type, QInfo *q_info)
     {
         dec_str[0] = 'B';
     }
+}
 
+void q_add_xyz(int8_t read_val, uint8_t reg_type, QInfo *q_info)
+{
+    static char dec_str[10];
+    choose_first_two_elems(dec_str, reg_type);
     int8_to_string(read_val, dec_str + 2);
+    q_add_str(dec_str, q_info);
+}
+
+
+void int16_to_string(int16_t value, char *str)
+{
+    char *ptr = str;
+    bool is_negative = false;
+
+    // Handle negative values
+    if (value < 0)
+    {
+        is_negative = true;
+        value = -value;
+    }
+
+    // Null-terminate the string
+    *ptr = '\n';
+    ptr++;
+    *ptr = '\r';
+    ptr++;
+
+    // Convert the integer to a string
+    do
+    {
+        *ptr = '0' + (value % 10);
+        ptr++;
+        value /= 10;
+    } while (value > 0);
+
+    if (is_negative)
+    {
+        *ptr = '-';
+        ptr++;
+    }
+
+    // Reverse the string
+    for (char *start = str, *end = ptr - 1; start < end; ++start, --end)
+    {
+        char temp = *start;
+        *start = *end;
+        *end = temp;
+    }
+}
+
+void q_add_xyz_big(int16_t read_val, uint8_t reg_type, QInfo *q_info)
+{
+    static char dec_str[10];
+    choose_first_two_elems(dec_str, reg_type);
+    int16_to_string(read_val, dec_str + 2);
     q_add_str(dec_str, q_info);
 }
 
