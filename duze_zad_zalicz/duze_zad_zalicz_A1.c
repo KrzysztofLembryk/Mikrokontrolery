@@ -458,8 +458,10 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         I2C1->SR2;
         // Zainicjuj transmisję sygnału STOP
         I2C1->CR1 |= I2C_CR1_STOP;
+
         // Nie mozemy wylaczyc  przerwanie TxE, bo wylaczy sie tez RxNE 
         // I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+
         return OK;
     default:
         return OTHER_ERROR;
@@ -594,8 +596,6 @@ void I2C1_EV_IRQHandler()
     static uint32_t byte_type = INIT_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
-    //static bool is_MR = false;
-    //static bool more_to_set = false;
     static uint32_t timer = 0;
 
     // Odczytujemy RAZ SR1 bo odczyt może zmienić bity i dwa odczyty pod rząd
@@ -609,13 +609,9 @@ void I2C1_EV_IRQHandler()
     else 
         read_reg_addr = OUT_Y_REG;
 
-    // better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
     if (op_type == INIT_OPERATION)
     {
         int ret_val = handle_MT_mode(&byte_type, sr1);
-
-        // if (ret_val != OK)
-        //     power_diods(ret_val);
     }
     else if (op_type == REPEATED_START_OPERATION)
     {
@@ -624,7 +620,12 @@ void I2C1_EV_IRQHandler()
             if (sr1 & I2C_SR1_RXNE)
             {
                 int8_t received_byte = I2C1->DR;
-                
+
+                // timer jest potrzebny bo obslugujemy LCD w petli while, 
+                // wiec mamy skonczona ilosc miejsca na kolejce a akcelerometr
+                // wykonuje bardzo duzo pomiarow na sekunde wiec zeby miec 
+                // responsywne LCD to dodajemy do naszej kolejki tylko raz 
+                // na ustalona empirycznie predkosc czytania 
                 if (timer % ACCELEROMETER_READ_SPEED == 0)
                 {
                     timer = 0;
@@ -671,8 +672,6 @@ void I2C1_EV_IRQHandler()
         else 
         {
             int ret_val = handle_MR_mode(read_reg_addr, &byte_type, sr1);
-            // if (ret_val != OK)
-            //     power_diods(ret_val);
         }
     }
 }
