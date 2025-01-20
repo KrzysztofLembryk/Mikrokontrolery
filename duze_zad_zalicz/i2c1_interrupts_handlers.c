@@ -138,7 +138,7 @@ void power_diods(int ret_code)
 }
 
 
-void init_I2C1_accelerometer_transmission()
+void init_accelerometer_transmission()
 {
     I2C1->CR1 |= I2C_CR1_START;
 }
@@ -162,12 +162,12 @@ void init_queues()
     // zeby moc odbierac dane, wiec jak skonczy sie inicjalizacja, to w 
     // obsludze przerwania sprwadzamy te kolejke, widzimy, ze jest jeszcze cos 
     // na kolejce, wiec inicjalizujemy kolejna operacje.
-    q_add(INIT_POWER_EN_OPERATION, &op_queue);
+    q_add(INIT_OPERATION, &op_queue);
     q_add(REPEATED_START_OPERATION, &op_queue);
 }
 
 
-int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
+int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
 {
     // Musimy czekac az kolejka nadawcza bedzie pusta, zeby czegos co chcielismy
     // wyslac nie nadpisac. Moze sie zdarzyc tak ze SB ustawiony ale TXE jeszcze
@@ -179,19 +179,19 @@ int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
 
     switch (*byte_type)
     {
-    case INIT_POWER_EN_SEND_SLAVE_ADDR:
+    case INIT_SEND_SLAVE_ADDR:
         if (!(SR1 & I2C_SR1_SB))
             return INIT_SB_FLAG_NOT_SET;
 
-        *byte_type = INIT_POWER_EN_SEND_CTRL_REG_ADDR;
+        *byte_type = INIT_SEND_CTRL_REG_ADDR;
         I2C1->DR = LIS35DE_ADDR << 1;
 
         return OK;
-    case INIT_POWER_EN_SEND_CTRL_REG_ADDR:
+    case INIT_SEND_CTRL_REG_ADDR:
         if (!(SR1 & I2C_SR1_ADDR))
             return INIT_ADDR_FLAG_NOT_SET;
 
-        *byte_type = INIT_POWER_EN_SEND_CTRL_REG_DATA;
+        *byte_type = INIT_SEND_CTRL_REG_DATA;
         // odczytujemy SR2, aby wyczyscic bit ADDR, jest to wymagane aby
         // zakonczyc procedure adresowania i przejsc do nastepnego etapu
         // transmisji
@@ -199,16 +199,16 @@ int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
         I2C1->DR = CTRL_REG1;
 
         return OK;
-    case INIT_POWER_EN_SEND_CTRL_REG_DATA:
+    case INIT_SEND_CTRL_REG_DATA:
         // Tutaj wystarczy nam że flaga TXE jest ustawiona 
         if (!(SR1 & I2C_SR1_TXE))
             return INIT_TXE_FLAG_NOT_SET;
 
-        *byte_type = INIT_POWER_EN_END_TRANSMISSION;
-        I2C1->DR = PD_EN;
+        *byte_type = INIT_END_TRANSMISSION;
+        I2C1->DR = CTRL_REG1_ENABLE;
 
         return OK;
-    case INIT_POWER_EN_END_TRANSMISSION:
+    case INIT_END_TRANSMISSION:
         if (!(SR1 & I2C_SR1_BTF))
             return INIT_BTF_FLAG_NOT_SET;
         *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
@@ -221,7 +221,7 @@ int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
         // zdejmujemy operacje inicjalizacji z kolejki
         char op_type; 
         q_remove(&op_type, &op_queue);
-        if (op_type != INIT_POWER_EN_OPERATION)
+        if (op_type != INIT_OPERATION)
         {
             send_char_by_USART('I');
             return OTHER_ERROR;
@@ -400,7 +400,7 @@ int better_impl(
     {
         // etap MT: 3
         if (first_sent)
-            I2C1->DR = PD_EN;
+            I2C1->DR = CTRL_REG1_ENABLE;
     }
     else if (sr1 & I2C_SR1_RXNE) // etap MR: 6
     {
@@ -419,7 +419,7 @@ int better_impl(
 
 void I2C1_EV_IRQHandler()
 {
-    static uint32_t byte_type = INIT_POWER_EN_SEND_SLAVE_ADDR;
+    static uint32_t byte_type = INIT_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
     static bool is_MR = false;
@@ -439,10 +439,10 @@ void I2C1_EV_IRQHandler()
         read_reg_addr = OUT_Z_REG;
 
     // better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
-    if (op_type == INIT_POWER_EN_OPERATION)
+    if (op_type == INIT_OPERATION)
     {
         send_char_by_USART('i');
-        int ret_val = handle_init_power_en(&byte_type, sr1);
+        int ret_val = handle_MT_mode(&byte_type, sr1);
 
         if (ret_val != OK)
             power_diods(ret_val);

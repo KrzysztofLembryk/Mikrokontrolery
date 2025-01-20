@@ -310,9 +310,9 @@ void init_external_interrupts()
                     GPIO_PuPd_UP,
                     EXTI_Mode_Interrupt,
                     EXTI_Trigger_Rising_Falling);
-
+    
     // Wyczyszczenie znacznikow oczekujacych przerwan dla naszych linii
-    EXTI->PR = EXTI_PR_PR13 | EXTI_PR_PR0 | EXTI_PR_PR3 | EXTI_PR_PR4 | EXTI_PR_PR5 | EXTI_PR_PR6 | EXTI_PR_PR10;
+    EXTI->PR = EXTI_PR_PR3 | EXTI_PR_PR4 | EXTI_PR_PR5 | EXTI_PR_PR6 | EXTI_PR_PR10;
 
     // Ustawienie priorytetow przerwan - niepotrzebne, jest ok gdy maja te same priorytety
     // NVIC_SetPriority(EXTI15_10_IRQn, 2);
@@ -322,12 +322,25 @@ void init_external_interrupts()
     // NVIC_SetPriority(EXTI9_5_IRQn, 4);
 
     // Wlaczenie przerwan dla linii:
-    // 13 - USER
-    // 0 - AT MODE 
     // 3, 4, 5, 6, 10 - JOYSTICK 
-    // NVIC_EnableIRQ(EXTI0_IRQn);
     NVIC_EnableIRQ(EXTI3_IRQn);
     NVIC_EnableIRQ(EXTI4_IRQn);
     NVIC_EnableIRQ(EXTI9_5_IRQn);
     NVIC_EnableIRQ(EXTI15_10_IRQn);
+}
+
+void init_accelerometer_interrupts()
+{
+    // -------AKCELEROMETR-------
+    GPIOinConfigure(GPIOA,
+                    1,
+                    GPIO_PuPd_NOPULL,
+                    EXTI_Mode_Interrupt,
+                    EXTI_Trigger_Rising_Falling);
+
+    // Wyczyszczenie znacznikow oczekujacych przerwan dla naszych linii
+    EXTI->PR |= EXTI_PR_PR1;
+
+    // 1 - Akcelerometr
+    NVIC_EnableIRQ(EXTI1_IRQn);
 }

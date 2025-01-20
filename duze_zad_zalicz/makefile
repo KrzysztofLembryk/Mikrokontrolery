@@ -15,7 +15,7 @@ vpath %.c /opt/arm/stm32/src
 
 OBJECTS = duze_zad_zalicz_A1.o startup_stm32.o delay.o gpio.o \
 			init_funcs.o queue.o buttons.o button_handlers.o lcd.o fonts.o \
-			lcd_handlers.o
+			lcd_handlers.o op_queue.o
 TARGET = comm
 
 .SECONDARY: $(TARGET).elf $(OBJECTS)

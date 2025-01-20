@@ -6,7 +6,7 @@
 #include <stm32.h>
 #include "queue.h"
 
-void init_I2C1_accelerometer_transmission();
+void init_accelerometer_transmission();
 
 void init_queues();
 

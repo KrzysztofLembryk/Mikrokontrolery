@@ -148,7 +148,7 @@ bool I2C1_send_power_en()
     if (!init_start_transmission())
         return false;
     
-    if (!send_data_to_accelerometer(CTRL_REG1, PD_EN))
+    if (!send_data_to_accelerometer(CTRL_REG1, CTRL_REG1_ENABLE))
         return false;
     
     end_transmission();

@@ -17,4 +17,6 @@ void init_I2C1();
 
 void init_external_interrupts();
 
+void init_accelerometer_interrupts();
+
 #endif // INIT_FUNCS_H

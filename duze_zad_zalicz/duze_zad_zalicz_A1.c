@@ -7,6 +7,7 @@
 #include "diods.h"
 #include "init_funcs.h"
 #include "queue.h"
+#include "op_queue.h"
 #include "buttons.h"
 #include "button_handlers.h"
 #include "lcd.h"
@@ -19,11 +20,20 @@
 
 // na WSL2, minicom ok
 // ale sudo /opt/arm/stm32/ocd/qfn4
-#define ACCELEROMETER_READ_SPEED 1201
+#define ACC_GPIO GPIOA
+#define ACC_INTRPT_PIN 1
+#define IsAccIntrptHigh() \
+    (ACC_GPIO->IDR & (1 << ACC_INTRPT_PIN))
+
+
+#define ACCELEROMETER_READ_SPEED 121
 
 #define LIS35DE_ADDR 0x1C
 #define CTRL_REG1 0x20
-#define PD_EN 0b01000111 // Power Down Enable, 7th bit = 64 = 0x40
+#define CTRL_REG3 0x22
+#define CTRL_REG1_ENABLE 0b01000011 // Zasilamy akcelerometr, i linie OX i OY
+#define CTRL_REG3_ENABLE 0b00000100 // Chcemy przerwanie gdy Data Ready
+#define CTRL_REG_DISABLE 0b00000000
 
 #define OUT_X_REG 0x29
 #define OUT_Y_REG 0x2B
@@ -36,16 +46,16 @@
 #define ACCELEROMETER_REG_NBR_1 0x1C
 #define ACCELEROMETER_REG_NBR_2 0x1D
 
-//------TYPY BAJTOW, CZYLI KONTROLA KOLEJNOSCI/MOMENTU W KTORYM JESTESMY------
+//------KONTROLA KOLEJNOSCI/MOMENTU W KTORYM JESTESMY------
 
-// INICJACJA
-#define INIT_POWER_EN_SEND_SLAVE_ADDR 0
+// INICJACJA, TRYB MT
+#define INIT_SEND_SLAVE_ADDR 0
 
-#define INIT_POWER_EN_SEND_CTRL_REG_ADDR 1
+#define INIT_SEND_CTRL_REG_ADDR 1
 
-#define INIT_POWER_EN_SEND_CTRL_REG_DATA 2
+#define INIT_SEND_CTRL_REG_DATA 2
 
-#define INIT_POWER_EN_END_TRANSMISSION 3
+#define INIT_END_TRANSMISSION 3
 
 // REPEATED START, TRYB MR
 #define START_TRANSSMISION_SEND_SLAVE_ADDR 4
@@ -73,14 +83,11 @@
 #define INIT_TXE_FLAG_NOT_SET 8
 #define INIT_BTF_FLAG_NOT_SET 9
 
-// OPERACJE NA KOLEJCE
-#define INIT_POWER_EN_OPERATION 'I'
-#define REPEATED_START_OPERATION 'R'
+// KOLEJKI
 
 QInfo dma_queue;
-QInfo op_queue;
+OpQueue op_queue;
 QInfo acc_queue;
-// BIAŁE -> ŻÓŁTE, czyli w MT INIT_BTF_FLAG_NOT_SET
 
 // ------------------------------------------------------------------------- 
 // ------------------------ DMA INTERRUPTS HANDLERS ------------------------
@@ -155,17 +162,9 @@ void try_to_start_DMA_transmission()
         start_DMA_transmission();
 }
 
-void send_char_by_USART(char c)
-{
-    if (USART2->SR & USART_SR_TXE)
-    {
-        USART2->DR = c;
-    }
-}
-
 void power_diods(int ret_code)
 {
-    uint64_t delay_time = 900000;
+    uint64_t delay_time = 400000;
     static int is_MR = false;
     if (is_MR)
         return;
@@ -241,6 +240,50 @@ void power_diods(int ret_code)
 // --------------------- EXTERNAL INTERRUPTS HANDLERS ----------------------
 // -------------------------------------------------------------------------
 
+// Akcelerometr
+
+void EXTI1_IRQHandler(void)
+{
+    static bool prev_state = false;
+    bool curr_state;
+    if (EXTI->PR & EXTI_PR_PR1)
+    {
+        // zerujemy przyczyne przerwania
+        EXTI->PR = EXTI_PR_PR1;
+
+        curr_state = IsAccIntrptHigh();
+
+        // symulujemy zbocze, czyli musimy sprawdzac jaki byl stan przed i po
+        if (curr_state != prev_state)
+        {
+            prev_state = curr_state;
+            if (curr_state)
+            {
+                // gdy curr_state to true to znaczy ze mamy nowy odczyt
+
+                // Jesli kolejka jest pusta, to dodajemy do niej operacje a 
+                // takze inicjujemy odczyt
+                if (op_q_is_empty(&op_queue))
+                {
+                    op_q_add(REPEATED_START_OPERATION, 0, 0,
+                    START_TRANSSMISION_SEND_SLAVE_ADDR, &op_queue);
+                    I2C1->CR1 |= I2C_CR1_START;
+                }
+                else
+                {
+                    // Jesli kolejka nie jest pusta, to tylko dodajemy operacje 
+                    // do kolejki, bo obsluga przerwania odczytujacego 
+                    // zainicjuje kolejny odczyt
+                    op_q_add(REPEATED_START_OPERATION, 0, 0, 
+                    START_TRANSSMISION_SEND_SLAVE_ADDR, &op_queue);
+                }
+            }
+
+        }
+    }
+}
+
+// Joystick
 void EXTI15_10_IRQHandler(void)
 {
     // Sprawdzamy czy JOYSTICK Center wywołał przerwanie
@@ -250,10 +293,6 @@ void EXTI15_10_IRQHandler(void)
 
         handle_jstick(check_JstickCenterPressed(), &dma_queue);
     }
-}
-
-void EXTI0_IRQHandler(void)
-{
 }
 
 void EXTI3_IRQHandler(void)
@@ -302,71 +341,43 @@ void EXTI9_5_IRQHandler(void)
 // ------------------------ I2C INTERRUPT HANDLERS -------------------------
 // -------------------------------------------------------------------------
 
-// UWAGA - trzeba zakolejkowac jakie operacje mamy wykonywac, czyli jak robimy
-// init power_en i potem robimy pierwsze odczyty, to zapisujemy te informacje 
-// na kolejce, i jak np skonczymy incjacje INIT_POWER_EN to sprawdzamy kolejke
-// zdejmujemy z niej operacje i sprawdzamy czy jesczcze jakas zostala, jesli tak
-// to w przerwaniu inicjalizujemy kolejna operacje. 
-// Analogicznie, trzeba bedzie obsluzyc i zainicjalizowac przerwania zewnetrzne 
-// akcelerometru, w tym kolejka tez pomoze!!! 
-
-int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
+int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
 {
-    // Musimy czekac az kolejka nadawcza bedzie pusta, zeby czegos co chcielismy
-    // wyslac nie nadpisac. Moze sie zdarzyc tak ze SB ustawiony ale TXE jeszcze
-    // nie pusty czy cos takiego
-    // if (!(SR1 & I2C_SR1_TXE))
-    // {
-    //     return TXE_FLAG_NOT_SET;
-    // }
-    if (SR1 & I2C_SR1_TXE)
-    {
-       q_add_str("i_TXE_FLAG\r\n", &dma_queue); 
-       try_to_start_DMA_transmission();
-    }
+    OpQueueElem op_elem = op_q_front(&op_queue);
 
     switch (*byte_type)
     {
-    case INIT_POWER_EN_SEND_SLAVE_ADDR:
+    case INIT_SEND_SLAVE_ADDR:
         if (!(SR1 & I2C_SR1_SB))
             return INIT_SB_FLAG_NOT_SET;
 
-        q_add_str("i_SB_OK\r\n", &dma_queue); 
-        try_to_start_DMA_transmission();
-        *byte_type = INIT_POWER_EN_SEND_CTRL_REG_ADDR;
+        *byte_type = INIT_SEND_CTRL_REG_ADDR;
         I2C1->DR = LIS35DE_ADDR << 1;
 
         return OK;
-    case INIT_POWER_EN_SEND_CTRL_REG_ADDR:
+    case INIT_SEND_CTRL_REG_ADDR:
         if (!(SR1 & I2C_SR1_ADDR))
             return INIT_ADDR_FLAG_NOT_SET;
 
-        q_add_str("i_ADDR_OK\r\n", &dma_queue); 
-        try_to_start_DMA_transmission();
-        *byte_type = INIT_POWER_EN_SEND_CTRL_REG_DATA;
-        // odczytujemy SR2, aby wyczyscic bit ADDR, jest to wymagane aby
-        // zakonczyc procedure adresowania i przejsc do nastepnego etapu
-        // transmisji
+        *byte_type = INIT_SEND_CTRL_REG_DATA;
         I2C1->SR2;
-        I2C1->DR = CTRL_REG1;
+        I2C1->DR = op_elem.reg_addr;
 
         return OK;
-    case INIT_POWER_EN_SEND_CTRL_REG_DATA:
+    case INIT_SEND_CTRL_REG_DATA:
         // Tutaj wystarczy nam że flaga TXE jest ustawiona 
         if (!(SR1 & I2C_SR1_TXE))
             return INIT_TXE_FLAG_NOT_SET;
 
-        q_add_str("i_TXE_OK\r\n", &dma_queue); 
-        try_to_start_DMA_transmission();
-        *byte_type = INIT_POWER_EN_END_TRANSMISSION;
-        I2C1->DR = PD_EN;
+        *byte_type = INIT_END_TRANSMISSION;
+        I2C1->DR = op_elem.reg_val;
 
         return OK;
-    case INIT_POWER_EN_END_TRANSMISSION:
+    case INIT_END_TRANSMISSION:
         if (!(SR1 & I2C_SR1_BTF))
             return INIT_BTF_FLAG_NOT_SET;
-        *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
 
+        op_q_remove(&op_queue);
         q_add_str("i_BTF_OK\r\n", &dma_queue); 
         try_to_start_DMA_transmission();
         // Nie mamy juz nic do wyslania bo koniec inicjacji, wiec wylaczamy 
@@ -375,23 +386,15 @@ int handle_init_power_en(uint32_t *byte_type, uint16_t SR1)
         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
 
         // zdejmujemy operacje inicjalizacji z kolejki
-        char op_type; 
-        q_remove(&op_type, &op_queue);
-        if (op_type != INIT_POWER_EN_OPERATION)
-        {
-            return OTHER_ERROR;
-        }
+        *byte_type = op_elem.byte_type;
 
-        // Sprawdzamy czy jest jeszcze cos na kolejce, jesli tak to 
-        // inicjalizujemy
-        op_type = q_front(&op_queue);
-        if (op_type != REPEATED_START_OPERATION)
+        // inicjujemy kolejne transmisje 
+        if (!op_q_is_empty(&op_queue))
         {
-            return OTHER_ERROR;
+            // wlaczamy przerwania TXE bo znowu bedzie cos wysylane
+            I2C1->CR2 |= I2C_CR2_ITBUFEN;
+            I2C1->CR1 |= I2C_CR1_START;
         }
-
-        // Inicjalizujemy transmisje sygnalu start zeby wlaczyc tryb MR
-        I2C1->CR1 |= I2C_CR1_START;
 
         return OK;
     default:
@@ -438,9 +441,9 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_SB))
             return SB_FLAG_NOT_SET;
 
+        *byte_type = END_SENDING;
         // Wlaczamy przerwania TXE bo cos wysylamy
         I2C1->CR2 |= I2C_CR2_ITBUFEN;
-        *byte_type = END_SENDING;
         I2C1->DR = LIS35DE_ADDR << 1 | 1;
         // Ponieważ ma być odebrany tylko jeden bajt, ustaw wysłanie
         // sygnału NACK, zerując bit ACK
@@ -459,7 +462,6 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         // I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
         return OK;
     default:
-        // send_char_by_USART('o');
         return OTHER_ERROR;
     }
 }
@@ -556,7 +558,7 @@ void better_impl(
     {
         // etap MT: 3
         if (first_sent)
-            I2C1->DR = PD_EN;
+            I2C1->DR = CTRL_REG1_ENABLE;
     }
     else if (sr1 & I2C_SR1_RXNE) // etap MR: 6
     {
@@ -589,7 +591,7 @@ void better_impl(
 
 void I2C1_EV_IRQHandler()
 {
-    static uint32_t byte_type = INIT_POWER_EN_SEND_SLAVE_ADDR;
+    static uint32_t byte_type = INIT_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
     //static bool is_MR = false;
@@ -600,7 +602,7 @@ void I2C1_EV_IRQHandler()
     // mogą zwrócić różne wartości
     uint16_t sr1 = I2C1->SR1;
 
-    char op_type = q_front(&op_queue);
+    char op_type = op_q_front(&op_queue).op_type;
 
     if (read_reg_type == X_REG_TYPE)
         read_reg_addr = OUT_X_REG;
@@ -608,12 +610,12 @@ void I2C1_EV_IRQHandler()
         read_reg_addr = OUT_Y_REG;
 
     // better_impl(sr1, &is_MR, &more_to_set, &read_reg_type);
-    if (op_type == INIT_POWER_EN_OPERATION)
+    if (op_type == INIT_OPERATION)
     {
-        int ret_val = handle_init_power_en(&byte_type, sr1);
+        int ret_val = handle_MT_mode(&byte_type, sr1);
 
-        if (ret_val != OK)
-            power_diods(ret_val);
+        // if (ret_val != OK)
+        //     power_diods(ret_val);
     }
     else if (op_type == REPEATED_START_OPERATION)
     {
@@ -622,7 +624,7 @@ void I2C1_EV_IRQHandler()
             if (sr1 & I2C_SR1_RXNE)
             {
                 int8_t received_byte = I2C1->DR;
-
+                
                 if (timer % ACCELEROMETER_READ_SPEED == 0)
                 {
                     timer = 0;
@@ -639,18 +641,38 @@ void I2C1_EV_IRQHandler()
                 else 
                     timer++;
 
+                // wylaczamy przerwania TXE bo nic nie wysylamy juz
+                I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+
+
+                if (read_reg_type == X_REG_TYPE)
+                {
+                    // musimy odczytac oba rejestry X i Y zeby kolejne 
+                    // przerwanie moglo zostac wywolane
+                    op_q_add(REPEATED_START_OPERATION, 0, 0,        
+                        START_TRANSSMISION_SEND_SLAVE_ADDR, &op_queue);
+                }
+
                 read_reg_type = (read_reg_type + 1) % 2;
 
-                // inicjujemy kolejna transmisje
                 byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
-                I2C1->CR1 |= I2C_CR1_START;
+
+                op_q_remove(&op_queue);
+
+                // inicjujemy kolejna transmisje jesli cos jest jeszcze na 
+                // kolejce, a w.p.p. obsluga przerwania zewnetrznego zainicjuje
+                // kolejna transmisje
+                if (!op_q_is_empty(&op_queue))
+                {
+                    I2C1->CR1 |= I2C_CR1_START;
+                }
             }
         }
         else 
         {
             int ret_val = handle_MR_mode(read_reg_addr, &byte_type, sr1);
-            if (ret_val != OK)
-                power_diods(ret_val);
+            // if (ret_val != OK)
+            //     power_diods(ret_val);
         }
     }
 }
@@ -658,19 +680,29 @@ void I2C1_EV_IRQHandler()
 void init_queues()
 {
     init_QInfo(&dma_queue, QUEUE_SIZE);
-    init_QInfo(&op_queue, QUEUE_SIZE);
     init_QInfo(&acc_queue, QUEUE_SIZE);
-    // W op_queue trzymamy operacje ktore maja sie wykonac, najpierw 
-    // inicjalizacja, ale potem musimy jeszcze zainicjalizowac repeated start
-    // zeby moc odbierac dane, wiec jak skonczy sie inicjalizacja, to w 
-    // obsludze przerwania sprwadzamy te kolejke, widzimy, ze jest jeszcze cos 
+
+    // W op_queue trzymamy operacje ktore maja sie wykonac, 
+    // w obsludze przerwania sprwadzamy kolejke, widzimy ze jest jeszcze cos 
     // na kolejce, wiec inicjalizujemy kolejna operacje.
-    q_add(INIT_POWER_EN_OPERATION, &op_queue);
-    q_add(REPEATED_START_OPERATION, &op_queue);
+    init_OpQueue(&op_queue);
 }
 
-void init_I2C1_accelerometer_transmission()
+void reset_accelerometer()
 {
+    op_q_add(INIT_OPERATION, CTRL_REG1, CTRL_REG_DISABLE, 
+    INIT_SEND_SLAVE_ADDR, &op_queue);
+    op_q_add(INIT_OPERATION, CTRL_REG3, CTRL_REG_DISABLE, 
+    INIT_SEND_SLAVE_ADDR, &op_queue);
+    I2C1->CR1 |= I2C_CR1_START;
+}
+
+void init_accelerometer_transmission()
+{
+    op_q_add(INIT_OPERATION, CTRL_REG3, CTRL_REG3_ENABLE, 
+    INIT_SEND_SLAVE_ADDR, &op_queue);
+    op_q_add(INIT_OPERATION, CTRL_REG1, CTRL_REG1_ENABLE, 
+     START_TRANSSMISION_SEND_SLAVE_ADDR, &op_queue);
     I2C1->CR1 |= I2C_CR1_START;
 }
 
@@ -683,9 +715,10 @@ int main()
     init_usart2_cr_registers();
     init_dma_cr_registers();
     init_dma_interrupts();
-    init_external_interrupts();
     init_I2C1();
     init_queues();
+    reset_accelerometer();
+    init_external_interrupts();
 
     // Petla ustawiania startowego znacznika poprzez uzywanie joysticka
     LCDclear();
@@ -701,7 +734,8 @@ int main()
         }
     }
 
-    init_I2C1_accelerometer_transmission();
+    init_accelerometer_interrupts();
+    init_accelerometer_transmission();
 
     // Petla odbierania danych z akcelerometru i przesylania ich do LCD
     int what_to_read = X_REG_TYPE;
