@@ -26,7 +26,7 @@
     (ACC_GPIO->IDR & (1 << ACC_INTRPT_PIN))
 
 
-#define ACCELEROMETER_READ_SPEED 121
+#define ACCELEROMETER_READ_SPEED 111
 
 #define LIS35DE_ADDR 0x1C
 #define CTRL_REG1 0x20
@@ -468,135 +468,69 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
     }
 }
 
-void better_impl(
-    uint16_t sr1, 
-    bool *is_MR, 
-    bool *more_to_set,
-    uint8_t *read_reg_type)
+void handle_MR_recv_data(uint8_t *read_reg_type, uint32_t *byte_type, uint16_t sr1)
 {
-    static uint8_t reg_addr = LIS35DE_ADDR << 1;
-    static bool first_sent = false;
     static uint32_t timer = 0;
-
-    if (sr1 & I2C_SR1_SB)
-    {
-        if (*is_MR) // etap MR: 1
-        {
-            // Wlaczamy przerwania TXE 
-            I2C1->CR2 |= I2C_CR2_ITBUFEN;
-        }
-
-        I2C1->DR = reg_addr; // etap MT: 1
-        
-        if (*is_MR)
-        {
-            if (*more_to_set) // etap MR: 4
-            {
-                I2C1->CR1 &= ~I2C_CR1_ACK;
-            }
-        }
-        else 
-        {
-            reg_addr = CTRL_REG1;
-            // w init_I2C wlaczamy przerwania TXE, wiec moze najpierw dostaniemy
-            // to przerwanie zanim jeszcze zrobimy START, wiec trzymamy boola 
-            // ktory mowi czy juz zaczelismy komunikacje
-            first_sent = true;
-        }
-    }
-    else if (sr1 & I2C_SR1_ADDR)
-    {
-        I2C1->SR2;
-        if (*is_MR)
-        {
-            if (*more_to_set) // etap MR: 5
-            {
-                // Zainicjuj transmisję sygnału STOP
-                I2C1->CR1 |= I2C_CR1_STOP;
-                // WYlaczamy przerwanie TxE bo nic nie wysylamy
-                // wlasnie chyba nie wylaczamy ich teraz bo nie dostaniemy 
-                // wtedy flagi RXNE
-                // I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-            }
-            else  // etap MR: 2
-            {
-                if (*read_reg_type == X_REG_TYPE)
-                    reg_addr = OUT_X_REG;
-                else if (*read_reg_type == Y_REG_TYPE)
-                    reg_addr = OUT_Y_REG;
-                else
-                    reg_addr = OUT_Z_REG;
-                I2C1->DR = reg_addr;
-
-                reg_addr = LIS35DE_ADDR << 1 | 1;
-            }
-        }
-        else // etap MT: 2
-            I2C1->DR = reg_addr;
-    }
-    else if (sr1 & I2C_SR1_BTF)
-    {
-        // etap MR: 3
-        if (*is_MR)
-        {
-            *more_to_set = true;
-            I2C1->CR1 |= I2C_CR1_START;
-        }
-        else // etap MT: 4 
-            I2C1->CR1 |= I2C_CR1_STOP;
-
-        // Musimy chwilowo wylaczyc przerwania TXE bo nic nie wysylamy
-        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-
-        if (!(*is_MR)) // etap MT: 4 - koniec
-        {
-            I2C1->CR1 |= I2C_CR1_START;
-            *is_MR = true;
-            reg_addr = LIS35DE_ADDR << 1;
-
-        }
-    }
-    else if (sr1 & I2C_SR1_TXE)
-    {
-        // etap MT: 3
-        if (first_sent)
-            I2C1->DR = CTRL_REG1_ENABLE;
-    }
-    else if (sr1 & I2C_SR1_RXNE) // etap MR: 6
+    if (sr1 & I2C_SR1_RXNE)
     {
         int8_t received_byte = I2C1->DR;
 
-        // q_add_xyz(received_byte, *read_reg_type, &dma_queue);
-        // try_to_start_DMA_transmission();
-
-        if (timer % 901 == 0)
+        // timer jest potrzebny bo obslugujemy LCD w petli while, 
+        // wiec mamy skonczona ilosc miejsca na kolejce a akcelerometr
+        // wykonuje bardzo duzo pomiarow na sekunde wiec zeby miec 
+        // responsywne LCD to dodajemy do naszej kolejki tylko raz 
+        // na ustalona empirycznie predkosc czytania 
+        if (timer % ACCELEROMETER_READ_SPEED == 0)
         {
             timer = 0;
-            q_add_xyz(received_byte, *read_reg_type, &dma_queue);
-            try_to_start_DMA_transmission();
-            if (*read_reg_type == 2)
+            if (q_check_if_enough_space(3, &acc_queue))
+            {
+                q_add(received_byte, &acc_queue);
+
+                q_add_xyz(received_byte, *read_reg_type, &dma_queue);
+                try_to_start_DMA_transmission();
+            }
+            if (*read_reg_type == Y_REG_TYPE)
                 timer++;
         }
         else 
             timer++;
 
-        *read_reg_type = (*read_reg_type + 1) % 3;
-        
-        // wylaczamy TXE bo nic nie wysylamy
+        // wylaczamy przerwania TXE bo nic nie wysylamy juz
         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-        // inicjujemy kolejna transmisje
-        *more_to_set = false;
-        I2C1->CR1 |= I2C_CR1_START;
-        reg_addr = LIS35DE_ADDR << 1;
+
+
+        if (*read_reg_type == X_REG_TYPE)
+        {
+            // musimy odczytac oba rejestry X i Y zeby kolejne 
+            // przerwanie moglo zostac wywolane
+            op_q_add(REPEATED_START_OPERATION, 0, 0,        
+                START_TRANSSMISION_SEND_SLAVE_ADDR, &op_queue);
+        }
+
+        *read_reg_type = (*read_reg_type + 1) % 2;
+
+        *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
+
+        op_q_remove(&op_queue);
+
+        // inicjujemy kolejna transmisje jesli cos jest jeszcze na 
+        // kolejce, a w.p.p. obsluga przerwania zewnetrznego zainicjuje
+        // kolejna transmisje
+        if (!op_q_is_empty(&op_queue))
+        {
+            I2C1->CR1 |= I2C_CR1_START;
+        }
     }
 }
+
 
 void I2C1_EV_IRQHandler()
 {
     static uint32_t byte_type = INIT_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
-    static uint32_t timer = 0;
+    // static uint32_t timer = 0;
 
     // Odczytujemy RAZ SR1 bo odczyt może zmienić bity i dwa odczyty pod rząd
     // mogą zwrócić różne wartości
@@ -617,57 +551,7 @@ void I2C1_EV_IRQHandler()
     {
         if (byte_type == RECEIVE_DATA)
         {
-            if (sr1 & I2C_SR1_RXNE)
-            {
-                int8_t received_byte = I2C1->DR;
-
-                // timer jest potrzebny bo obslugujemy LCD w petli while, 
-                // wiec mamy skonczona ilosc miejsca na kolejce a akcelerometr
-                // wykonuje bardzo duzo pomiarow na sekunde wiec zeby miec 
-                // responsywne LCD to dodajemy do naszej kolejki tylko raz 
-                // na ustalona empirycznie predkosc czytania 
-                if (timer % ACCELEROMETER_READ_SPEED == 0)
-                {
-                    timer = 0;
-                    if (q_check_if_enough_space(3, &acc_queue))
-                    {
-                        q_add(received_byte, &acc_queue);
-
-                        q_add_xyz(received_byte, read_reg_type, &dma_queue);
-                        try_to_start_DMA_transmission();
-                    }
-                    if (read_reg_type == Y_REG_TYPE)
-                        timer++;
-                }
-                else 
-                    timer++;
-
-                // wylaczamy przerwania TXE bo nic nie wysylamy juz
-                I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-
-
-                if (read_reg_type == X_REG_TYPE)
-                {
-                    // musimy odczytac oba rejestry X i Y zeby kolejne 
-                    // przerwanie moglo zostac wywolane
-                    op_q_add(REPEATED_START_OPERATION, 0, 0,        
-                        START_TRANSSMISION_SEND_SLAVE_ADDR, &op_queue);
-                }
-
-                read_reg_type = (read_reg_type + 1) % 2;
-
-                byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
-
-                op_q_remove(&op_queue);
-
-                // inicjujemy kolejna transmisje jesli cos jest jeszcze na 
-                // kolejce, a w.p.p. obsluga przerwania zewnetrznego zainicjuje
-                // kolejna transmisje
-                if (!op_q_is_empty(&op_queue))
-                {
-                    I2C1->CR1 |= I2C_CR1_START;
-                }
-            }
+            handle_MR_recv_data(&read_reg_type, &byte_type, sr1);
         }
         else 
         {
@@ -705,6 +589,39 @@ void init_accelerometer_transmission()
     I2C1->CR1 |= I2C_CR1_START;
 }
 
+void handle_drawing_new_lcd_pos()
+{
+    static int what_to_read = X_REG_TYPE;
+    static int8_t first_x_val = 0;
+    static int8_t first_y_val = 0;
+    static int8_t curr_x_val = 0;
+    static int8_t curr_y_val = 0;
+
+    if (!q_is_empty(&acc_queue))
+    {
+        if (what_to_read == X_REG_TYPE)
+        {
+            char x;
+
+            q_remove(&x, &acc_queue);
+
+            curr_x_val = (int8_t)x;
+            what_to_read = Y_REG_TYPE;
+        }
+        else 
+        {
+            char y;
+
+            q_remove(&y, &acc_queue);
+
+            curr_y_val = (int8_t)y;
+            what_to_read = X_REG_TYPE;
+            
+            calc_new_lcd_pos(curr_x_val, curr_y_val, &dma_queue);
+        }
+    }
+}
+
 int main()
 {
     init_rcc();
@@ -720,7 +637,7 @@ int main()
     init_external_interrupts();
 
     // Petla ustawiania startowego znacznika poprzez uzywanie joysticka
-    LCDclear();
+    LCDclear(true);
     LCDputchar('+');
     while (1)
     {
@@ -737,34 +654,8 @@ int main()
     init_accelerometer_transmission();
 
     // Petla odbierania danych z akcelerometru i przesylania ich do LCD
-    int what_to_read = X_REG_TYPE;
-    int8_t curr_x_val = 0;
-    int8_t curr_y_val = 0;
-
     while(1) 
     {
-        if (!q_is_empty(&acc_queue))
-        {
-            if (what_to_read == X_REG_TYPE)
-            {
-                char x;
-
-                q_remove(&x, &acc_queue);
-
-                curr_x_val = (int8_t)x;
-                what_to_read = Y_REG_TYPE;
-            }
-            else 
-            {
-                char y;
-
-                q_remove(&y, &acc_queue);
-
-                curr_y_val = (int8_t)y;
-                what_to_read = X_REG_TYPE;
-                
-                calc_new_lcd_pos(curr_x_val, curr_y_val, &dma_queue);
-            }
-        }
+        handle_drawing_new_lcd_pos();
     }
 }

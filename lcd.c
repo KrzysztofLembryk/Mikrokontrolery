@@ -553,7 +553,7 @@ void LCDconfigure() {
   /* Initialize hardware. */
   GPIOconfigure();
   LCDcontrollerConfigure();
-  LCDclear();
+  LCDclear(true);
 
 // Moja inicjalizacja zmiennych sledzacych polozenie znacznika 
 // gdy wyjdzie on poza ekran
@@ -563,19 +563,30 @@ void LCDconfigure() {
   overflow_bits_right = 0;
 }
 
-void LCDclear() {
-  int i, j;
+void LCDclear(bool clear_all) {
 
-  CS(0);
-  LCDsetRectangle(0, 0, LCD_PIXEL_WIDTH - 1, LCD_PIXEL_HEIGHT - 1);
-  for (i = 0; i < LCD_PIXEL_WIDTH; ++i) {
-    for (j = 0; j < LCD_PIXEL_HEIGHT; ++j) {
-      LCDwriteData16(BackColor);
-    }
-  }
-  CS(1);
+	if (clear_all)
+	{
 
-  LCDgoto(0, 0);
+	  int i, j;
+
+	  CS(0);
+	  LCDsetRectangle(0, 0, LCD_PIXEL_WIDTH - 1, LCD_PIXEL_HEIGHT - 1);
+	  for (i = 0; i < LCD_PIXEL_WIDTH; ++i) {
+	  	for (j = 0; j < LCD_PIXEL_HEIGHT; ++j) {
+	      LCDwriteData16(BackColor);
+	    }
+	  }
+	  CS(1);
+
+	  LCDgoto(0, 0);
+	}
+	else 
+	{
+		LCDsetColors(LCD_COLOR_BLUE, LCD_COLOR_BLUE);
+		LCDdrawChar('+');
+		LCDsetColors(LCD_COLOR_WHITE, LCD_COLOR_BLUE);
+	}
 }
 
 

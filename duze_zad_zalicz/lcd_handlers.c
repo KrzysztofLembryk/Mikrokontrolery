@@ -58,7 +58,7 @@ void calc_new_lcd_pos(int8_t pos_change, int8_t line_change, QInfo *q_info)
         line = line % LCD_HEIGHT;
     }
 
-    LCDclear();
+    LCDclear(false);
     LCDgoto(line, pos);
     LCDputchar('+');
 }
