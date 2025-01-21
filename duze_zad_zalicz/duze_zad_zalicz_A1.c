@@ -26,7 +26,7 @@
     (ACC_GPIO->IDR & (1 << ACC_INTRPT_PIN))
 
 
-#define ACCELEROMETER_READ_SPEED 111
+#define ACCELEROMETER_READ_SPEED 55
 
 #define LIS35DE_ADDR 0x1C
 #define CTRL_REG1 0x20
@@ -341,17 +341,17 @@ void EXTI9_5_IRQHandler(void)
 // ------------------------ I2C INTERRUPT HANDLERS -------------------------
 // -------------------------------------------------------------------------
 
-int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
+int handle_MT_mode(uint32_t *comm_status, uint16_t SR1)
 {
     OpQueueElem op_elem = op_q_front(&op_queue);
 
-    switch (*byte_type)
+    switch (*comm_status)
     {
     case INIT_SEND_SLAVE_ADDR:
         if (!(SR1 & I2C_SR1_SB))
             return INIT_SB_FLAG_NOT_SET;
 
-        *byte_type = INIT_SEND_CTRL_REG_ADDR;
+        *comm_status = INIT_SEND_CTRL_REG_ADDR;
         I2C1->DR = LIS35DE_ADDR << 1;
 
         return OK;
@@ -359,7 +359,7 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_ADDR))
             return INIT_ADDR_FLAG_NOT_SET;
 
-        *byte_type = INIT_SEND_CTRL_REG_DATA;
+        *comm_status = INIT_SEND_CTRL_REG_DATA;
         I2C1->SR2;
         I2C1->DR = op_elem.reg_addr;
 
@@ -369,7 +369,7 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_TXE))
             return INIT_TXE_FLAG_NOT_SET;
 
-        *byte_type = INIT_END_TRANSMISSION;
+        *comm_status = INIT_END_TRANSMISSION;
         I2C1->DR = op_elem.reg_val;
 
         return OK;
@@ -386,7 +386,7 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
         I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
 
         // zdejmujemy operacje inicjalizacji z kolejki
-        *byte_type = op_elem.byte_type;
+        *comm_status = op_elem.comm_status;
 
         // inicjujemy kolejne transmisje 
         if (!op_q_is_empty(&op_queue))
@@ -402,15 +402,15 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
     }
 }
 
-int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
+int handle_MR_mode(uint8_t read_reg_addr, uint32_t *comm_status, uint16_t SR1)
 {
-    switch (*byte_type)
+    switch (*comm_status)
     {
     case START_TRANSSMISION_SEND_SLAVE_ADDR:
         if (!(SR1 & I2C_SR1_SB))
             return SB_FLAG_NOT_SET;
         
-        *byte_type = SEND_READ_REG_ADDR;
+        *comm_status = SEND_READ_REG_ADDR;
         // wlaczamy przerwania TXE bo cos wysylamy
         I2C1->CR2 |= I2C_CR2_ITBUFEN;
         I2C1->DR = LIS35DE_ADDR << 1;
@@ -422,7 +422,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_ADDR))
             return ADDR_FLAG_NOT_SET;
 
-        *byte_type = SEND_REPEATED_START;
+        *comm_status = SEND_REPEATED_START;
         I2C1->SR2;
         I2C1->DR = read_reg_addr;
 
@@ -431,7 +431,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_BTF))
             return BTF_FLAG_NOT_SET;
 
-        *byte_type = SEND_SLAVE_ADDR_MR;
+        *comm_status = SEND_SLAVE_ADDR_MR;
         I2C1->CR1 |= I2C_CR1_START;
         // Musimy chwilowo wylaczyc przerwania bo nic nie wysylamy teraz, ale
         // jak wrocimy z obslugi przerwania to od razu to wlaczymy
@@ -441,7 +441,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_SB))
             return SB_FLAG_NOT_SET;
 
-        *byte_type = END_SENDING;
+        *comm_status = END_SENDING;
         // Wlaczamy przerwania TXE bo cos wysylamy
         I2C1->CR2 |= I2C_CR2_ITBUFEN;
         I2C1->DR = LIS35DE_ADDR << 1 | 1;
@@ -453,7 +453,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if(!(SR1 & I2C_SR1_ADDR))
             return ADDR_FLAG_NOT_SET;
 
-        *byte_type = RECEIVE_DATA;
+        *comm_status = RECEIVE_DATA;
         // kasujemy bit ADDR
         I2C1->SR2;
         // Zainicjuj transmisję sygnału STOP
@@ -468,7 +468,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
     }
 }
 
-void handle_MR_recv_data(uint8_t *read_reg_type, uint32_t *byte_type, uint16_t sr1)
+void handle_MR_recv_data(uint8_t *read_reg_type, uint32_t *comm_status, uint16_t sr1)
 {
     static uint32_t timer = 0;
     if (sr1 & I2C_SR1_RXNE)
@@ -510,7 +510,7 @@ void handle_MR_recv_data(uint8_t *read_reg_type, uint32_t *byte_type, uint16_t s
 
         *read_reg_type = (*read_reg_type + 1) % 2;
 
-        *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
+        *comm_status = START_TRANSSMISION_SEND_SLAVE_ADDR;
 
         op_q_remove(&op_queue);
 
@@ -527,10 +527,9 @@ void handle_MR_recv_data(uint8_t *read_reg_type, uint32_t *byte_type, uint16_t s
 
 void I2C1_EV_IRQHandler()
 {
-    static uint32_t byte_type = INIT_SEND_SLAVE_ADDR;
+    static uint32_t comm_status = INIT_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
-    // static uint32_t timer = 0;
 
     // Odczytujemy RAZ SR1 bo odczyt może zmienić bity i dwa odczyty pod rząd
     // mogą zwrócić różne wartości
@@ -545,17 +544,17 @@ void I2C1_EV_IRQHandler()
 
     if (op_type == INIT_OPERATION)
     {
-        int ret_val = handle_MT_mode(&byte_type, sr1);
+        int ret_val = handle_MT_mode(&comm_status, sr1);
     }
     else if (op_type == REPEATED_START_OPERATION)
     {
-        if (byte_type == RECEIVE_DATA)
+        if (comm_status == RECEIVE_DATA)
         {
-            handle_MR_recv_data(&read_reg_type, &byte_type, sr1);
+            handle_MR_recv_data(&read_reg_type, &comm_status, sr1);
         }
         else 
         {
-            int ret_val = handle_MR_mode(read_reg_addr, &byte_type, sr1);
+            int ret_val = handle_MR_mode(read_reg_addr, &comm_status, sr1);
         }
     }
 }
@@ -592,6 +591,7 @@ void init_accelerometer_transmission()
 void handle_drawing_new_lcd_pos()
 {
     static int what_to_read = X_REG_TYPE;
+    static bool first_read = true;
     static int8_t first_x_val = 0;
     static int8_t first_y_val = 0;
     static int8_t curr_x_val = 0;
@@ -599,25 +599,74 @@ void handle_drawing_new_lcd_pos()
 
     if (!q_is_empty(&acc_queue))
     {
-        if (what_to_read == X_REG_TYPE)
+        if (first_read)
         {
-            char x;
+            if (what_to_read == X_REG_TYPE)
+            {
+                char x;
 
-            q_remove(&x, &acc_queue);
+                q_remove(&x, &acc_queue);
 
-            curr_x_val = (int8_t)x;
-            what_to_read = Y_REG_TYPE;
+                first_x_val = abs((int8_t)x);
+
+                if (first_x_val >= 3)
+                    first_x_val = 2;
+
+                what_to_read = Y_REG_TYPE;
+            }
+            else 
+            {
+                char y;
+
+                q_remove(&y, &acc_queue);
+
+                first_y_val = abs((int8_t)y);
+                if (first_y_val >= 3)
+                    first_y_val = 2;
+                what_to_read = X_REG_TYPE;
+                first_read = false;
+            }
         }
         else 
         {
-            char y;
+            if (what_to_read == X_REG_TYPE)
+            {
+                char x;
 
-            q_remove(&y, &acc_queue);
+                q_remove(&x, &acc_queue);
 
-            curr_y_val = (int8_t)y;
-            what_to_read = X_REG_TYPE;
-            
-            calc_new_lcd_pos(curr_x_val, curr_y_val, &dma_queue);
+                curr_x_val = (int8_t)x;
+                what_to_read = Y_REG_TYPE;
+            }
+            else 
+            {
+                char y;
+
+                q_remove(&y, &acc_queue);
+
+                curr_y_val = (int8_t)y;
+                what_to_read = X_REG_TYPE;
+
+                // if (curr_x_val < 0)
+                //     curr_x_val += first_x_val;
+                // else
+                //     curr_x_val -= first_x_val;
+                
+                // if (curr_y_val < 0)
+                //     curr_y_val += first_y_val;
+                // else
+                //     curr_y_val -= first_y_val;
+
+                // if (abs(curr_x_val) <= 2)
+                //     curr_x_val = 0;
+
+                // if (abs(curr_y_val) <= 2)
+                //     curr_y_val = 0;                
+                curr_y_val /= 2;
+                curr_x_val /= 2;
+
+                calc_new_lcd_pos(curr_x_val, curr_y_val, &dma_queue);
+            }
         }
     }
 }

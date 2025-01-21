@@ -14,7 +14,7 @@ typedef struct
     char op_type;
     uint8_t reg_addr;
     uint8_t reg_val;
-    uint8_t byte_type;
+    uint8_t comm_status;
     bool active;
 
 } OpQueueElem;
@@ -34,7 +34,7 @@ void init_OpQueue(OpQueue *op_q);
 bool op_q_is_empty(OpQueue *op_q);
 
 bool op_q_add(char op_type, uint8_t reg_addr, uint8_t reg_val, 
-uint8_t byte_type, OpQueue *op_q);
+uint8_t comm_status, OpQueue *op_q);
 
 OpQueueElem op_q_remove(OpQueue *op_q);
 

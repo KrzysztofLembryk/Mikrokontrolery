@@ -17,7 +17,7 @@ bool op_q_is_empty(OpQueue *op_q)
 }
 
 bool op_q_add(char op_type, uint8_t reg_addr, uint8_t reg_val, 
-uint8_t byte_type, OpQueue *op_q)
+uint8_t comm_status, OpQueue *op_q)
 {
     if (op_q->nbr_of_elements >= op_q->q_size)
         return false;
@@ -26,7 +26,7 @@ uint8_t byte_type, OpQueue *op_q)
     elem.op_type = op_type;
     elem.reg_addr = reg_addr;
     elem.reg_val = reg_val;
-    elem.byte_type = byte_type;
+    elem.comm_status = comm_status;
     elem.active = false;
 
     op_q->queue[op_q->end] = elem;
@@ -44,7 +44,7 @@ OpQueueElem op_q_remove(OpQueue *op_q)
         elem.op_type = NO_OPERATION;
         elem.reg_addr = 0;
         elem.reg_val = 0;
-        elem.byte_type = 10;
+        elem.comm_status = 10;
     }
     else 
     {
@@ -64,7 +64,7 @@ OpQueueElem op_q_front(OpQueue *op_q)
         elem.op_type = NO_OPERATION;
         elem.reg_addr = 0;
         elem.reg_val = 0;
-        elem.byte_type = 10;
+        elem.comm_status = 10;
         return elem;
     }
     return op_q->queue[op_q->front];

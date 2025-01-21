@@ -167,7 +167,7 @@ void init_queues()
 }
 
 
-int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
+int handle_MT_mode(uint32_t *comm_status, uint16_t SR1)
 {
     // Musimy czekac az kolejka nadawcza bedzie pusta, zeby czegos co chcielismy
     // wyslac nie nadpisac. Moze sie zdarzyc tak ze SB ustawiony ale TXE jeszcze
@@ -177,13 +177,13 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
     //     return TXE_FLAG_NOT_SET;
     // }
 
-    switch (*byte_type)
+    switch (*comm_status)
     {
     case INIT_SEND_SLAVE_ADDR:
         if (!(SR1 & I2C_SR1_SB))
             return INIT_SB_FLAG_NOT_SET;
 
-        *byte_type = INIT_SEND_CTRL_REG_ADDR;
+        *comm_status = INIT_SEND_CTRL_REG_ADDR;
         I2C1->DR = LIS35DE_ADDR << 1;
 
         return OK;
@@ -191,7 +191,7 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_ADDR))
             return INIT_ADDR_FLAG_NOT_SET;
 
-        *byte_type = INIT_SEND_CTRL_REG_DATA;
+        *comm_status = INIT_SEND_CTRL_REG_DATA;
         // odczytujemy SR2, aby wyczyscic bit ADDR, jest to wymagane aby
         // zakonczyc procedure adresowania i przejsc do nastepnego etapu
         // transmisji
@@ -204,14 +204,14 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_TXE))
             return INIT_TXE_FLAG_NOT_SET;
 
-        *byte_type = INIT_END_TRANSMISSION;
+        *comm_status = INIT_END_TRANSMISSION;
         I2C1->DR = CTRL_REG1_ENABLE;
 
         return OK;
     case INIT_END_TRANSMISSION:
         if (!(SR1 & I2C_SR1_BTF))
             return INIT_BTF_FLAG_NOT_SET;
-        *byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
+        *comm_status = START_TRANSSMISION_SEND_SLAVE_ADDR;
 
         // Nie mamy juz nic do wyslania bo koniec inicjacji, wiec wylaczamy 
         // przerwania bo ciagle by sie one generowaly bo nic nie dodalismy do DR
@@ -246,15 +246,15 @@ int handle_MT_mode(uint32_t *byte_type, uint16_t SR1)
     }
 }
 
-int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
+int handle_MR_mode(uint8_t read_reg_addr, uint32_t *comm_status, uint16_t SR1)
 {
-    switch (*byte_type)
+    switch (*comm_status)
     {
     case START_TRANSSMISION_SEND_SLAVE_ADDR:
         if (!(SR1 & I2C_SR1_SB))
             return SB_FLAG_NOT_SET;
         
-        *byte_type = SEND_READ_REG_ADDR;
+        *comm_status = SEND_READ_REG_ADDR;
         // wlaczamy przerwania TXE bo cos wysylamy
         I2C1->CR2 |= I2C_CR2_ITBUFEN;
         I2C1->DR = LIS35DE_ADDR << 1;
@@ -266,7 +266,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_ADDR))
             return ADDR_FLAG_NOT_SET;
 
-        *byte_type = SEND_REPEATED_START;
+        *comm_status = SEND_REPEATED_START;
         I2C1->SR2;
         I2C1->DR = read_reg_addr;
 
@@ -275,7 +275,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if (!(SR1 & I2C_SR1_BTF))
             return BTF_FLAG_NOT_SET;
 
-        *byte_type = SEND_SLAVE_ADDR_MR;
+        *comm_status = SEND_SLAVE_ADDR_MR;
         I2C1->CR1 |= I2C_CR1_START;
         // Musimy chwilowo wylaczyc przerwania bo nic nie wysylamy teraz, ale
         // jak wrocimy z obslugi przerwania to od razu to wlaczymy
@@ -287,7 +287,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
 
         // Wlaczamy przerwania TXE bo cos wysylamy
         I2C1->CR2 |= I2C_CR2_ITBUFEN;
-        *byte_type = END_SENDING;
+        *comm_status = END_SENDING;
         I2C1->DR = LIS35DE_ADDR << 1 | 1;
         // Ponieważ ma być odebrany tylko jeden bajt, ustaw wysłanie
         // sygnału NACK, zerując bit ACK
@@ -297,7 +297,7 @@ int handle_MR_mode(uint8_t read_reg_addr, uint32_t *byte_type, uint16_t SR1)
         if(!(SR1 & I2C_SR1_ADDR))
             return ADDR_FLAG_NOT_SET;
 
-        *byte_type = RECEIVE_DATA;
+        *comm_status = RECEIVE_DATA;
         // kasujemy bit ADDR
         I2C1->SR2;
         // Zainicjuj transmisję sygnału STOP
@@ -419,7 +419,7 @@ int better_impl(
 
 void I2C1_EV_IRQHandler()
 {
-    static uint32_t byte_type = INIT_SEND_SLAVE_ADDR;
+    static uint32_t comm_status = INIT_SEND_SLAVE_ADDR;
     static uint8_t read_reg_type = X_REG_TYPE;
     uint8_t read_reg_addr;
     static bool is_MR = false;
@@ -442,14 +442,14 @@ void I2C1_EV_IRQHandler()
     if (op_type == INIT_OPERATION)
     {
         send_char_by_USART('i');
-        int ret_val = handle_MT_mode(&byte_type, sr1);
+        int ret_val = handle_MT_mode(&comm_status, sr1);
 
         if (ret_val != OK)
             power_diods(ret_val);
     }
     else if (op_type == REPEATED_START_OPERATION)
     {
-        if (byte_type == RECEIVE_DATA)
+        if (comm_status == RECEIVE_DATA)
         {
             if (sr1 & I2C_SR1_RXNE)
             {
@@ -460,13 +460,13 @@ void I2C1_EV_IRQHandler()
                 read_reg_type = (read_reg_type + 1) % 3;
 
                 // inicjujemy kolejna transmisje
-                byte_type = START_TRANSSMISION_SEND_SLAVE_ADDR;
+                comm_status = START_TRANSSMISION_SEND_SLAVE_ADDR;
                 I2C1->CR1 |= I2C_CR1_START;
             }
         }
         else 
         {
-            int ret_val = handle_MR_mode(read_reg_addr, &byte_type, sr1);
+            int ret_val = handle_MR_mode(read_reg_addr, &comm_status, sr1);
             if (ret_val != OK)
                 power_diods(ret_val);
         }
